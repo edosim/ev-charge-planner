@@ -29,6 +29,7 @@ def get_client(request: Request) -> httpx.AsyncClient:
 #  what the endpoint sends back 
 class ScheduleResponse(BaseModel):
     slots: list[Slot]
+    forecast: list[Slot]
     emissions_kg: float
     charge_now_kg: float
     saved_kg: float
@@ -80,6 +81,9 @@ async def schedule(
     now_kg = emissions_kg(slots[:len(plan)], charge_rate_kw)
     saved_kg = now_kg - smart_kg
 
-    return ScheduleResponse(
-        slots=plan, emissions_kg=smart_kg, charge_now_kg=now_kg, saved_kg=saved_kg
+    return ScheduleResponse(slots=plan,
+                            forecast=slots,
+                            emissions_kg=smart_kg,
+                            charge_now_kg=now_kg,
+                            saved_kg=round(saved_kg, 3), #same precision as two above
     )

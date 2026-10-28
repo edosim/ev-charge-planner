@@ -93,11 +93,12 @@ def query_params(hours_from_now: float,
 
 #----- all works----
 
-def test_returns_a_plan(client):
+def test_returns_a_plan_and_full_forecast(client):
     fake_server()
     response = client.get("/schedule",params=query_params(10))
     assert response.status_code == 200
     assert len(response.json()["slots"]) == 9 # successful slots for 30kWh at 7kW
+    assert len(response.json()["forecast"]) == 96 # 48h of data
 
 
 def test_returns_correct_discrete_plan(client):
