@@ -1,0 +1,85 @@
+from contextlib import asynccontextmanager
+from datetime import datetime, time, timedelta, date, timezone
+from typing import Literal
+from zoneinfo import ZoneInfo
+
+import httpx
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from pydantic import BaseModel, ValidationError
+
+from main import Slot, emissions_kg, fetch_forecast, plan_charge
+
+UK = ZoneInfo("Europe/London")
+
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with httpx.AsyncClient() as client:
+        app.state.client = client      # created once when the server starts
+        yield                          # the server runs here
+    # client closed automatically when the server stops
+
+
+app = FastAPI(title="greencharge", lifespan=lifespan)
+
+def get_client(request: Request) -> httpx.AsyncClient:
+    return request.app.state.client
+
+#  what the endpoint sends back 
+class ScheduleResponse(BaseModel):
+    slots: list[Slot]
+    emissions_kg: float
+    charge_now_kg: float
+    saved_kg: float
+
+
+def check_deadline(deadline: datetime, slots: list[Slot],
+                   now: datetime | None = None):
+    """Check that the deadline is in the data from the Carbon Intensity API,
+    and after now."""
+    if now is None:
+        now = datetime.now(timezone.utc)
+    if deadline <= now:
+        raise ValueError("Deadline must be in the future.")
+    if deadline > slots[-1].end:
+        raise ValueError("Deadline must be within the next 48h "
+                         f"(before {slots[-1].end.astimezone(UK):%a %H:%M}).")
+
+# the endpoint
+
+@app.get("/schedule", response_model=ScheduleResponse)
+async def schedule(
+    charge_needed_kwh: float = Query(gt=0, le=200, description="Energy needed for car in kWh"),
+    deadline_date: date = Query(description="Date when the car should finish charging, UK time, e.g. 2026-10-25"),
+    deadline_time: time = Query(description="Time when the car should finish charging, UK time, e.g. 07:00"),
+    charge_rate_kw: float = Query(7, gt=0, le=400, description="Charge power in kW"),
+    mode: Literal["discrete","continuous"] = "discrete",
+    client: httpx.AsyncClient = Depends(get_client),
+):
+    
+    try:
+        slots = await fetch_forecast(client)
+    except (httpx.HTTPError, ValidationError):
+        raise HTTPException(status_code=503, detail="Carbon Intensity API is unavailable")
+
+    if not slots:
+        raise HTTPException(status_code=503, detail="No forecast data available")         
+                       
+    deadline = datetime.combine(deadline_date, deadline_time, tzinfo=UK)
+
+    try:
+        check_deadline(deadline, slots)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    #Get best slots
+    plan = plan_charge(slots, charge_needed_kwh, charge_rate_kw, deadline, mode=mode)
+    #Get emissions
+    smart_kg = emissions_kg(plan, charge_rate_kw)
+    now_kg = emissions_kg(slots[:len(plan)], charge_rate_kw)
+    saved_kg = now_kg - smart_kg
+
+    return ScheduleResponse(
+        slots=plan, emissions_kg=smart_kg, charge_now_kg=now_kg, saved_kg=saved_kg
+    )
