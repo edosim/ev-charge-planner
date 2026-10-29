@@ -1,121 +1,159 @@
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import type { ScheduleResponse } from './types'
+
+// create type for the two modes
+type Mode = 'discrete' | 'continuous'
+
+// create constant with instructions for the browser on how to
+// display time
+const ukTime = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London',
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+// make date in uk format
+function formatUk(iso: string): string {
+  return ukTime.format(new Date(iso))
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  // Creates place to write input(default), with its name and the function allowed to change it
+  // equivalent to python's unpacking: a, b = ...
+  const [chargeNeeded, setChargeNeeded] = useState('20')
+  const [deadlineDate, setDeadlineDate] = useState('')
+  const [deadlineTime, setDeadlineTime] = useState('07:00')
+  const [chargeRate, setChargeRate] = useState('7')
+  // <> tell it what it can hold
+  const [mode, setMode] = useState<Mode>('discrete')
+
+  const [result, setResult] = useState<ScheduleResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  // calling the API
+  async function handleSubmit() {
+    setLoading(true)
+    setError(null)
+    setResult(null)
+
+    // query params
+    const params = new URLSearchParams({
+      charge_needed_kwh: chargeNeeded,
+      deadline_date: deadlineDate,
+      deadline_time: deadlineTime,
+      charge_rate_kw: chargeRate,
+      mode,
+    })
+
+    try {
+      // await client.get(..). `${}` are like f"{}"
+      const response = await fetch(`/schedule?${params}`)
+      const body = await response.json()
+      // if not response.ok
+      if (!response.ok) {
+        // cond ? a : b same as a if cond else b
+        // aka deyail if type(detail) == str else json.dumps(detail)
+        setError(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail))
+        return
+      }
+      setResult(body)
+    } catch { //except
+      setError('Could not reach the server.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+    <main>
+      <h1>GreenCharge</h1>
+
+      {/* when button is pressed or enter in a field is pressed
+      => like lambda*/}
+      <form
+        onSubmit={(event) => {
+          {/* Prevents reloading all page */}
+          event.preventDefault()
+          handleSubmit()
+        }}
+      >
+        <label>
+          Charge needed (kWh)
+          <input
+            type="number"
+            min="0.5"
+            step="0.5"
+            value={chargeNeeded}
+            onChange={(e) => setChargeNeeded(e.target.value)}
+            required
+          />
+        </label>
+
+        <label>
+          Charger power (kW)
+          <input
+            type="number"
+            min="1"
+            step="0.1"
+            value={chargeRate}
+            onChange={(e) => setChargeRate(e.target.value)}
+            required
+          />
+        </label>
+
+        <label>
+          Ready by (date)
+          <input
+            type="date"
+            value={deadlineDate}
+            onChange={(e) => setDeadlineDate(e.target.value)}
+            required
+          />
+        </label>
+
+        <label>
+          Ready by (time, UK)
+          <input
+            type="time"
+            value={deadlineTime}
+            onChange={(e) => setDeadlineTime(e.target.value)}
+            required
+          />
+        </label>
+
+        <label>
+          Mode
+          <select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
+            <option value="discrete">Greenest slots (may be split up)</option>
+            <option value="continuous">One unbroken block</option>
+          </select>
+        </label>
+
+        <button type="submit" disabled={loading}>
+          {loading ? 'Planning…' : 'Plan my charge'}
         </button>
-      </section>
+      </form>
 
-      <div className="ticks"></div>
+      {error && <p role="alert">Error: {error}</p>}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
+      {result && (
+        <section>
+          <p>
+            Emissions: {result.emissions_kg} kg CO₂ (charging now: {result.charge_now_kg} kg)
+          </p>
+          <p>You save {result.saved_kg} kg CO₂</p>
           <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
+            {result.slots.map((slot) => (
+              <li key={slot.from}>
+                {formatUk(slot.from)} – {formatUk(slot.to)}
+              </li>
+            ))}
           </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        </section>
+      )}
+    </main>
   )
 }
 
