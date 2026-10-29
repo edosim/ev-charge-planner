@@ -1,11 +1,19 @@
 import { useState } from 'react'
-import type { ScheduleResponse } from './types'
+import type { ScheduleResponse, Slot } from './types'
 import { formatUk } from './time'
 import ForecastChart from './ForecastChart'
 
 // create type for the two modes
 type Mode = 'discrete' | 'continuous'
 
+// make helper function with text for output
+function describePlan(slots: Slot[]): string {
+  const count = slots.length
+  const hours = count / 2
+  const slotWord = count === 1 ? 'slot' : 'slots'
+  const hourWord = hours === 1 ? 'hour' : 'hours'
+  return `Charging during ${count} half-hour ${slotWord} (${hours} ${hourWord}).`
+}
 
 
 function App() {
@@ -49,7 +57,9 @@ function App() {
         return
       }
       setResult(body)
-    } catch { //except
+    } catch (err) { //except
+      //write error to browser's developer console
+      console.error(err)
       setError('Could not reach the server.')
     } finally {
       setLoading(false)
@@ -59,6 +69,7 @@ function App() {
   return (
     <main>
       <h1>GreenCharge</h1>
+      <p className='tagline'>Plan your EV charge for the UK's greenest half-hours</p>
 
       {/* when button is pressed or enter in a field is pressed
       => like lambda*/}
@@ -116,7 +127,7 @@ function App() {
         <label>
           Mode
           <select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
-            <option value="discrete">Greenest slots (may be split up)</option>
+            <option value="discrete">Greenest slots</option>
             <option value="continuous">One unbroken block</option>
           </select>
         </label>
@@ -126,23 +137,39 @@ function App() {
         </button>
       </form>
 
-      {error && <p role="alert">Error: {error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          Error: {error}
+          </p>
+        )}
 
       {result && (
-        <section>
-          <p>
-            Emissions: {result.emissions_kg} kg CO₂ (charging now: {result.charge_now_kg} kg)
-          </p>
-          <p>You save {result.saved_kg} kg CO₂</p>
-          <ul>
+        <section className='results'>
+          <div className="stats">
+            <div className="stat">
+             <span className='stat-value'>{result.emissions_kg} kg</span>
+             <span className='stat-label'>CO₂ with this plan</span>
+            </div>
+            <div className="stat">
+             <span className='stat-value'>{result.charge_now_kg} kg</span>
+             <span className='stat-label'>CO₂ if you charged now</span>
+            </div>
+            <div className="stat">
+             <span className='stat-value'>{result.saved_kg} kg</span>
+             <span className='stat-label'>CO₂ saved</span>
+            </div>
+          </div>
+          <p className='summary'>{describePlan(result.slots)}</p>
+
+            <ForecastChart forecast={result.forecast} chosen={result.slots} />
+
+            <ul className='slot-list'>
             {result.slots.map((slot) => (
               <li key={slot.from}>
                 {formatUk(slot.from)} – {formatUk(slot.to)}
               </li>
             ))}
           </ul>
-          <p>You save {result.saved_kg} kg CO₂ compared to charging now</p>
-            <ForecastChart forecast={result.forecast} chosen={result.slots} />
         </section>
       )}
     </main>
