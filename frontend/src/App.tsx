@@ -1,22 +1,12 @@
 import { useState } from 'react'
 import type { ScheduleResponse } from './types'
+import { formatUk } from './time'
+import ForecastChart from './ForecastChart'
 
 // create type for the two modes
 type Mode = 'discrete' | 'continuous'
 
-// create constant with instructions for the browser on how to
-// display time
-const ukTime = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/London',
-  weekday: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 
-// make date in uk format
-function formatUk(iso: string): string {
-  return ukTime.format(new Date(iso))
-}
 
 function App() {
   // Creates place to write input(default), with its name and the function allowed to change it
@@ -151,6 +141,8 @@ function App() {
               </li>
             ))}
           </ul>
+          <p>You save {result.saved_kg} kg CO₂ compared to charging now</p>
+            <ForecastChart forecast={result.forecast} chosen={result.slots} />
         </section>
       )}
     </main>
