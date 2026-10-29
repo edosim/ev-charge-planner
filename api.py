@@ -83,7 +83,7 @@ async def schedule(
 
     return ScheduleResponse(slots=plan,
                             forecast=slots,
-                            emissions_kg=smart_kg,
-                            charge_now_kg=now_kg,
+                            emissions_kg=round(smart_kg,3),
+                            charge_now_kg=round(now_kg,3),
                             saved_kg=round(saved_kg, 3), #same precision as two above
     )

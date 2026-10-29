@@ -138,6 +138,21 @@ def test_emissions_are_correct(client):
     assert response.json()['charge_now_kg'] == pytest.approx(1.4)
     assert response.json()['saved_kg'] == pytest.approx(0.875)
 
+def test_emissions_have_3_dp(client):
+    fake_server(forecasts=[50, 50] + [200]*94)
+    response = client.get("/schedule",params=query_params(10, charge_needed_kwh=6, charge_rate_kw=20/3))
+    # emissions (50+50) * 0.5 * 20/3 * 1e-3 = 50 * 20/3 * 1e-3 = 0.333(3333)
+    assert response.json()['emissions_kg'] == 0.333
+    assert response.json()['charge_now_kg'] == 0.333
+
+def test_saved_emissions_have_3_dp(client):
+    # make difference 0.0045 so it rounds to 0.004
+    # charge now is 19 * 0.5 * 1 *1e-3 = 0.0095
+    # discrete is 10 * 0.5 * 1* 1e-3 = 0.005
+    fake_server(forecasts=[9, 10, 5, 5] + [200]*92)
+    response = client.get("/schedule",params=query_params(10, charge_needed_kwh=1, charge_rate_kw=1))
+
+    assert response.json()['saved_kg'] == 0.004
 
 # --------- deadline errors (check_deadline through API)----------
 
