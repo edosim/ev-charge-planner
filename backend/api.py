@@ -9,6 +9,11 @@ from pydantic import BaseModel, ValidationError
 
 from main import Slot, emissions_kg, fetch_forecast, plan_charge
 
+import os
+from pathlib import Path
+
+from fastapi.staticfiles import StaticFiles
+
 UK = ZoneInfo("Europe/London")
 
 
@@ -87,3 +92,16 @@ async def schedule(
                             charge_now_kg=round(now_kg,3),
                             saved_kg=round(saved_kg, 3), #same precision as two above
     )
+
+
+# Serve the built React page. Must come at the end of file
+
+#get path of distribution of front end
+STATIC_DIR = Path(os.environ.get(
+    "STATIC_DIR",
+    Path(__file__).resolve().parent.parent / "frontend" / "dist",
+))
+
+if STATIC_DIR.is_dir():
+    # attach subapplication at a path
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
