@@ -15,6 +15,42 @@ function describePlan(slots: Slot[]): string {
   return `Charging during ${count} half-hour ${slotWord} (${hours} ${hourWord}).`
 }
 
+const HALF_HOUR = 30 * 60 * 1000; // 1,800,000 ms, easier to read than 1.8e+6
+
+function groupSlotList(slots: Slot[]): Slot[] {
+  if (slots.length === 0) return [];
+
+  const groups: Slot[] = [];
+  let groupStart = slots[0]; // first slot of the group
+  let previous = slots[0];
+
+  for (let i = 1; i < slots.length; i++) {
+    const current = slots[i];
+    const gap = new Date(current.from).getTime() - new Date(previous.from).getTime();
+
+    if (gap !== HALF_HOUR) {
+      // There's a break: close the current group using the previous slot's end
+      groups.push({
+        from: groupStart.from,
+        to: previous.to,
+        intensity: groupStart.intensity, //placeholder to reuse slot 
+      });
+      groupStart = current; // start a new group here
+    }
+
+    previous = current;
+  }
+
+  // close last group
+  groups.push({
+    from: groupStart.from,
+    to: previous.to,
+    intensity: groupStart.intensity,
+  });
+
+  return groups;
+}
+
 
 function App() {
   // Creates place to write input(default), with its name and the function allowed to change it
@@ -164,7 +200,7 @@ function App() {
             <ForecastChart forecast={result.forecast} chosen={result.slots} />
 
             <ul className='slot-list'>
-            {result.slots.map((slot) => (
+            {groupSlotList(result.slots).map((slot) => (
               <li key={slot.from}>
                 {formatUk(slot.from)} – {formatUk(slot.to)}
               </li>
