@@ -7,9 +7,6 @@ from pydantic import BaseModel, Field
 
 import math #for ceil
 
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-
 from helper_functions import get_smallest_window
 
 class Intensity(BaseModel):
@@ -56,16 +53,13 @@ def plan_charge(slots: list[Slot],
     # If there are not enough slots charge now.
     if slots_needed > len(slots_available):
         charge_final = charge_rate / 2 *len(slots_available)
-        print(f"There is not enough time for a full charge. Your vehicle will get {charge_final} kWh.")
         return slots_available
     else:
         if mode == 'discrete':
-            print("Discrete mode")
             # Find the best slots overall
             greenest_slots = sorted(slots_available, key = lambda s: s.intensity.forecast)[:slots_needed]
             return sorted(greenest_slots, key = lambda s: s.start)
         elif mode == 'continuous':
-            print('Continuous mode')
             #get index of first item in the window with lowest total forecast
             idx,_ = get_smallest_window([s.intensity.forecast for s in slots_available],
                                         slots_needed)
@@ -107,22 +101,6 @@ async def main():
         smart_discrete = emissions_kg(plan_discrete, charge_rate)
         print(f"Choose discrete mode and save an extra {smart - smart_discrete:.2f} kg of CO2.")
 
-
-    
-    # plot
-    PLOT = False
-
-    if PLOT:
-        x = [slot.start for slot in slots]
-        y = [slot.intensity.forecast for slot in slots] 
-        plt.plot(x,y,'o-')
-        ax = plt.gca()
-        ax.xaxis.set_major_locator(mdates.HourLocator(byhour=range(0,24,2)))
-        ax.xaxis.set_minor_locator(mdates.MinuteLocator(byminute=range(0,60,30)))
-
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H'))
-        plt.show()
-    
 
 if __name__ == "__main__":
     asyncio.run(main())
