@@ -43,4 +43,4 @@ jobs:
     needs: [backend, frontend] 
     steps:
       - uses: actions/checkout@v6
-      - run: docker build -t greencharge .
+      - run: docker build -t ev-charge-planner .

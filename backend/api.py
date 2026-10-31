@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     # client closed automatically when the server stops
 
 
-app = FastAPI(title="greencharge", lifespan=lifespan)
+app = FastAPI(title="EV Charge Planner", lifespan=lifespan)
 
 def get_client(request: Request) -> httpx.AsyncClient:
     return request.app.state.client

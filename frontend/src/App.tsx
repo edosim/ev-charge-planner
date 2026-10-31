@@ -63,7 +63,7 @@ function App() {
 
   return (
     <main>
-      <h1>GreenCharge</h1>
+      <h1>EV Charge Planner</h1>
       <p className='tagline'>Plan your EV charge for the UK's greenest half-hours</p>
 
       {/* when button is pressed or enter in a field is pressed
