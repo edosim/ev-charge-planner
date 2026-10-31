@@ -202,3 +202,13 @@ button:focus-visible {
   color: var(--green-text);
   font-size: 0.85rem;
 }
+
+.site-footer {
+  margin-top: 32px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.site-footer a {
+  color: inherit;
+}

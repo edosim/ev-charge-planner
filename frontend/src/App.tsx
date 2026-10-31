@@ -167,6 +167,15 @@ function App() {
           </ul>
         </section>
       )}
+      <footer className="site-footer">
+        <p>
+          Carbon intensity forecasts from the{' '}
+          <a href="https://carbonintensity.org.uk/">Carbon Intensity API</a> by the National Energy
+          System Operator (NESO), licensed under{' '}
+          <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Charging plans and
+          emissions figures are calculated from this data.
+        </p>
+      </footer>
     </main>
   )
 }
