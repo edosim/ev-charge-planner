@@ -46,7 +46,8 @@ def test_deadline_equal_last_slot_is_accepted():
 # ---------------- test api ---
 # helper functions
 
-def start_of_first_slot():
+def start_of_first_slot() -> datetime:
+    """Get time of first slot as a datetime object"""
     now = datetime.now(timezone.utc)
     minutes_to_subtract = now.minute % 30
     first_slot_time =  now - timedelta(minutes=minutes_to_subtract)
@@ -153,6 +154,16 @@ def test_saved_emissions_have_3_dp(client):
     response = client.get("/schedule",params=query_params(10, charge_needed_kwh=1, charge_rate_kw=1))
 
     assert response.json()['saved_kg'] == 0.004
+
+@pytest.mark.parametrize("hours_from_now, expected_fully_charged",[
+    (1, False),      #1 hour is not enough for 30 kWh at 7kW 
+    (10, True),     #10 hours are enough for 30 kWh at 7kW 
+])
+def test_fully_charged_is_correct(client, hours_from_now, expected_fully_charged):
+    fake_server()
+    response = client.get("/schedule",params=query_params(hours_from_now))
+    assert response.json()['fully_charged'] == expected_fully_charged
+
 
 # --------- deadline errors (check_deadline through API)----------
 

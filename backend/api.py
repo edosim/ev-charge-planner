@@ -38,6 +38,7 @@ class ScheduleResponse(BaseModel):
     emissions_kg: float
     charge_now_kg: float
     saved_kg: float
+    fully_charged: bool
 
 
 def check_deadline(deadline: datetime, slots: list[Slot],
@@ -80,7 +81,7 @@ async def schedule(
         raise HTTPException(status_code=422, detail=str(e))
 
     #Get best slots
-    plan = plan_charge(slots, charge_needed_kwh, charge_rate_kw, deadline, mode=mode)
+    plan, fully_charged = plan_charge(slots, charge_needed_kwh, charge_rate_kw, deadline, mode=mode)
     #Get emissions
     smart_kg = emissions_kg(plan, charge_rate_kw)
     now_kg = emissions_kg(slots[:len(plan)], charge_rate_kw)
@@ -91,6 +92,7 @@ async def schedule(
                             emissions_kg=round(smart_kg,3),
                             charge_now_kg=round(now_kg,3),
                             saved_kg=round(saved_kg, 3), #same precision as two above
+                            fully_charged=fully_charged
     )
 
 

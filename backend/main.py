@@ -43,7 +43,9 @@ def plan_charge(slots: list[Slot],
                 charge_needed: float,
                 charge_rate: float,
                 deadline: datetime,
-                mode: str = 'discrete'):
+                mode: str = 'discrete') -> tuple[list[Slot], bool]:
+    """Returns slots of planned charge and `bool` of whether it gets fully charged"""
+    
     if mode not in ('discrete', 'continuous'):
         raise ValueError(f"Got mode = '{mode}'. Expected 'discrete' or 'continuous'.")
 
@@ -52,18 +54,17 @@ def plan_charge(slots: list[Slot],
     slots_available = [s for s in slots if s.end <= deadline]
     # If there are not enough slots charge now.
     if slots_needed > len(slots_available):
-        charge_final = charge_rate / 2 *len(slots_available)
-        return slots_available
+        return slots_available, False
     else:
         if mode == 'discrete':
             # Find the best slots overall
             greenest_slots = sorted(slots_available, key = lambda s: s.intensity.forecast)[:slots_needed]
-            return sorted(greenest_slots, key = lambda s: s.start)
+            return sorted(greenest_slots, key = lambda s: s.start), True
         elif mode == 'continuous':
             #get index of first item in the window with lowest total forecast
             idx,_ = get_smallest_window([s.intensity.forecast for s in slots_available],
                                         slots_needed)
-            return slots_available[idx:idx + slots_needed]
+            return slots_available[idx:idx + slots_needed], True
 
 def emissions_kg(slots: list[Slot], charge_rate):
     grams_per_energy = sum([s.intensity.forecast for s in slots])
@@ -78,15 +79,18 @@ async def main():
     for slot in slots[:3]+slots[-3:]:
         print(slot.start, slot.intensity.forecast, slot.intensity.actual, slot.intensity.index)
 
-    deadline = datetime.now(timezone.utc) + timedelta(hours=8)
+    deadline = datetime.now(timezone.utc) + timedelta(hours=1)
 
     max_charge = 30 #kWh
     current_charge_fraction = 0.1 # from 0 to 1
     charge_needed = (1-current_charge_fraction) * max_charge
     charge_rate = 7
     mode = 'continuous'
-    plan = plan_charge(slots, charge_needed,charge_rate,deadline,mode=mode)
+    plan, fully_charged = plan_charge(slots, charge_needed,charge_rate,deadline,mode=mode)
 
+    if not fully_charged:
+        charge_final = charge_rate / 2 * len(plan)
+        print(f"There is not enough time for a full charge. Your vehicle will get {charge_final} kWh.")
 
     print("Your vehicle will charge at the following times.")
     for s in plan:
@@ -97,7 +101,7 @@ async def main():
     smart = emissions_kg(plan, charge_rate)
     print(f"You will save {dumb-smart:.2f} kg of CO2 vs. charging now.")
     if mode == 'continuous':
-        plan_discrete = plan_charge(slots, charge_needed,charge_rate,deadline,mode='discrete')
+        plan_discrete, _ = plan_charge(slots, charge_needed,charge_rate,deadline,mode='discrete')
         smart_discrete = emissions_kg(plan_discrete, charge_rate)
         print(f"Choose discrete mode and save an extra {smart - smart_discrete:.2f} kg of CO2.")
 
