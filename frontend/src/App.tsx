@@ -20,6 +20,8 @@ function App() {
   const [chargeRate, setChargeRate] = useState('7')
   // <> tell it what it can hold
   const [mode, setMode] = useState<Mode>('discrete')
+  // this is for when the requested charge is displayed (i.e. when there is not enought time to charge)
+  const [plannedCharge, setPlannedCharge] = useState('')
 
   const [result, setResult] = useState<ScheduleResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +54,7 @@ function App() {
         return
       }
       setResult(body)
+      setPlannedCharge(chargeNeeded)
     } catch (err) { //except
       //write error to browser's developer console
       console.error(err)
@@ -155,10 +158,17 @@ function App() {
             </div>
           </div>
           <p className='summary'>{describePlan(result.slots)}</p>
-
+          {/* if not result.fully_charged*/}          
+          {!result.fully_charged && (
+            <p className="warning" role="status">
+              There isn't enough time to charge the full {plannedCharge} kWh before your deadline.
+            </p>
+          )}
             <ForecastChart forecast={result.forecast} chosen={result.slots} />
 
-            <ul className='slot-list'>
+
+            <h2 className="section-title" id="charging-times">Charging times</h2>
+            <ul className='slot-list' aria-labelledby="charging-times">
             {groupSlots(result.slots).map((slot) => (
               <li key={slot.from}>
                 {formatUk(slot.from)} – {formatUk(slot.to)}

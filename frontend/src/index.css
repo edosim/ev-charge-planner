@@ -10,6 +10,8 @@
   --background: #f4f6f8;
   --error-bg: #fdecec;
   --error-text: #a12a2a;
+  --warning-bg: #fbf3e2;
+  --warning-text: #7a5410;
 
   color-scheme: light;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -186,10 +188,17 @@ button:focus-visible {
 
 /* Chosen times */
 
+.section-title {
+  margin: 20px 0 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .slot-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0;
   margin: 16px 0 0;
   padding: 0;
   list-style: none;
@@ -211,4 +220,12 @@ button:focus-visible {
 
 .site-footer a {
   color: inherit;
+}
+
+.warning {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
 }

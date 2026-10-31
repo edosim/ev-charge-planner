@@ -18,4 +18,5 @@ export type ScheduleResponse = {
     emissions_kg: number;
     charge_now_kg: number;
     saved_kg: number;
+    fully_charged: boolean;
 }
