@@ -4,5 +4,6 @@
 **/.venv
 frontend/dist
 backend/tests
+analysis
 .git
 .vscode
