@@ -7,7 +7,8 @@ EV Charge Planner is a live app for planning carbon-aware charging times for ele
 
 **Live demo:** [ev-charge-planner-742443010251.europe-west1.run.app](https://ev-charge-planner-742443010251.europe-west1.run.app)
 
-![EV Charge Planner frontend ](docs/ev-charge-planner_frontend.png)
+<img src="docs/ev-charge-planner_frontend.png" width="600">
+
 
 
 ## What it does
