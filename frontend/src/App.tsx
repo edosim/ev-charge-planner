@@ -113,7 +113,7 @@ function App() {
         </label>
 
         <label>
-          Ready by (time, UK)
+          Ready by (time)
           <input
             type="time"
             value={deadlineTime}
@@ -183,7 +183,7 @@ function App() {
           <a href="https://carbonintensity.org.uk/">Carbon Intensity API</a> by the National Energy
           System Operator (NESO), licensed under{' '}
           <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Charging plans and
-          emissions figures are calculated from this data.
+          emissions data are calculated from this data.
         </p>
       </footer>
     </main>
