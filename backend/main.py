@@ -3,38 +3,70 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AwareDatetime, field_validator, model_validator
+from typing import Self, Literal
 
 import math #for ceil
 
 from helper_functions import get_smallest_window
 
 class Intensity(BaseModel):
-    forecast: int | None
+    forecast: int | None = Field(ge=0)
     actual: int | None = None
-    index: str
+    index: Literal["very low", "low", "moderate", "high", "very high"]
 
 
 class Slot(BaseModel):
-    start: datetime = Field(alias="from")
-    end: datetime = Field(alias="to")
+    start: AwareDatetime = Field(alias="from")
+    end: AwareDatetime = Field(alias="to")
     intensity: Intensity
 
+    @field_validator("start", "end")
+    @classmethod
+    def to_utc(cls, value: datetime) -> datetime:
+        """Converts `start` and `end` fields to UTC"""
+        return value.astimezone(timezone.utc)
+
+    @model_validator(mode="after")
+    def check_half_hour(self) -> Self:
+        """Checks that slot end is exactly 30 min after start."""
+        if self.end - self.start != timedelta(minutes=30):
+            raise ValueError("A slot must be 30 minutes long. "
+                             f"Got {(self.end - self.start).total_seconds()/60} minutes")
+        return self
 
 class ForecastResponse(BaseModel):
     data: list[Slot]
+
+    @model_validator(mode="after")
+    def check_consecutive(self) -> Self:
+        """Check that a slot end time is the same as the next's start time"""
+        for previous, current in zip(self.data[:-1],self.data[1:]):
+            if previous.end != current.start:
+                raise ValueError("Slots must be consecutive. Found a gap after"
+                                 f"{previous.end:%Y-%m-%d %H:%M} UTC")
+        return self
+
 
 
 BASE_URL = "https://api.carbonintensity.org.uk"
 
 
 async def fetch_forecast(client: httpx.AsyncClient) -> list[Slot]:
+    """Fetch data from Carbon intensity API. Return slots up to the where
+    `slot.intensity.forecast is None`."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
 
     resp = await client.get(f"{BASE_URL}/intensity/{now}/fw48h", timeout=10)
     resp.raise_for_status()
     slots = ForecastResponse.model_validate(resp.json()).data
-    return [s for s in slots if s.intensity.forecast is not None]
+
+    slots_usable = []
+    for slot in slots:
+        if slot.intensity.forecast is None:
+            break
+        slots_usable.append(slot)
+    return slots_usable
 
 
 
