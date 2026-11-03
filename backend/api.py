@@ -74,19 +74,19 @@ async def schedule(
         raise HTTPException(status_code=503, detail="No forecast data available")         
                        
     deadline = datetime.combine(deadline_date, deadline_time, tzinfo=UK)
-
-    try:
-        check_deadline(deadline, slots)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-
-    #Get best slots
     request = ChargeRequest(
          charge_needed_kwh = charge_needed_kwh,
          charge_rate_kw = charge_rate_kw,
          deadline = deadline,
          mode = mode
     )
+
+    try:
+        check_deadline(request.deadline, slots)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    #Get best slots
     plan, fully_charged = plan_charge(slots, request)
     #Get emissions
     smart_kg = emissions_kg(plan, request.charge_rate_kw)
