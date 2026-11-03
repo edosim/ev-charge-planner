@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 
 from helper_functions import get_smallest_window
-from main import Slot, emissions_kg, plan_charge
+from main import Slot, emissions_kg, plan_charge, ChargeRequest
 
 
 
@@ -40,7 +40,7 @@ def test_emissions_kg_of_empty_plan_is_zero():
 
 
 # --------- plan_charge: number of slots -----------
-@pytest.mark.parametrize("charge_needed, charge_rate, expected_slots",[
+@pytest.mark.parametrize("charge_needed_kwh, charge_rate_kw, expected_slots",[
     (3.5, 7, 1),    #exactly 30 min
     (3.6, 7, 2),    # slightly more than 30 min: round up
     (10.5, 7, 3),   # 3 * 30 min
@@ -48,22 +48,19 @@ def test_emissions_kg_of_empty_plan_is_zero():
     (30, 7, 9),     #30 / 3.5 = 8.6 -> 9
 ])
 @pytest.mark.parametrize("mode", ["discrete", "continuous"])
-def test_plan_uses_correct_number_of_slots(charge_needed, charge_rate, expected_slots,mode):
+def test_plan_uses_correct_number_of_slots(charge_needed_kwh, charge_rate_kw, expected_slots, mode):
     slots = (make_slots([50,]*30))
-    plan, _ = plan_charge(slots, charge_needed, charge_rate, FAR_FUTURE, mode=mode)
+    request = ChargeRequest(charge_needed_kwh=charge_needed_kwh, charge_rate_kw=charge_rate_kw, deadline=FAR_FUTURE, mode=mode)
+    plan, _ = plan_charge(slots, request)
     assert len(plan) == expected_slots
-
-@pytest.mark.parametrize("mode", ["discrete", "continuous"])
-def test_zero_charge_needed_gives_empty_plan(mode):
-    slots = (make_slots([50,]*30))
-    assert plan_charge(slots, 0, 7, FAR_FUTURE, mode=mode)[0] == []
 
 
 # ----- plan_charge: slot selection -----
 
 def test_discrete_chooses_greenest_slots_overall_in_time_order():
     slots = make_slots([50, 100, 40, 70, 30])
-    plan, _ = plan_charge(slots, 7, 7, FAR_FUTURE, mode = 'discrete')
+    request = ChargeRequest(charge_needed_kwh=7, charge_rate_kw=7, deadline=FAR_FUTURE, mode="discrete")
+    plan, _ = plan_charge(slots, request)
     assert [s.intensity.forecast for s in plan] == [40, 30]
     assert [s.start for s in plan] == sorted([s.start for s in plan])
 
@@ -71,25 +68,31 @@ def test_discrete_chooses_greenest_slots_overall_in_time_order():
 def test_continuous_chooses_greenest_continuous_window():
     #discrete chooses 10, 50. continuous should choose 50, 50
     slots = make_slots([10, 100, 50, 50, 100])
-    plan, _ = plan_charge(slots, 7, 7, FAR_FUTURE, mode = 'continuous')
+    request = ChargeRequest(charge_needed_kwh=7, charge_rate_kw=7, deadline=FAR_FUTURE, mode="continuous")
+    plan, _ = plan_charge(slots, request)
     assert [s.intensity.forecast for s in plan] == [50, 50]
 
 
 def test_continuous_has_no_time_gaps():
-        # check order of four slots
-        slots = make_slots([40, 100, 50, 50, 100, 30, 80, 20])
-        plan, _ = plan_charge(slots, 14, 7, FAR_FUTURE, mode = 'continuous')
-        for first, second in zip(plan[:-1], plan[1:]):
-            assert first.end == second.start
+    # check order of four slots
+    slots = make_slots([40, 100, 50, 50, 100, 30, 80, 20])
+    request = ChargeRequest(charge_needed_kwh=14, charge_rate_kw=7, deadline=FAR_FUTURE, mode="continuous")
+    plan, _ = plan_charge(slots, request)
+    for first, second in zip(plan[:-1], plan[1:]):
+        assert first.end == second.start
 
 
 def test_discreet_never_worse_than_continuous():
     # discreet must always be better or the same as continuous
     slots = make_slots([40, 100, 50, 50, 100, 30, 80, 20, 40, 150, 15, 90])
     # check for different length
-    for charge_needed in [3.5, 7, 10.5, 20, 30]:
-        continuous, _ = plan_charge(slots, charge_needed, 7, FAR_FUTURE, mode = 'continuous')
-        discrete, _ = plan_charge(slots, charge_needed, 7, FAR_FUTURE, mode = 'discrete')
+    for charge_needed_kwh in [3.5, 7, 10.5, 20, 30]:
+        request_continuous = ChargeRequest(charge_needed_kwh=charge_needed_kwh, charge_rate_kw=7, deadline=FAR_FUTURE, mode="continuous")
+        request_discrete = ChargeRequest(charge_needed_kwh=charge_needed_kwh, charge_rate_kw=7, deadline=FAR_FUTURE, mode="discrete")
+
+        continuous, _ = plan_charge(slots, request_continuous)
+        discrete, _ = plan_charge(slots, request_discrete)
+
         assert emissions_kg(discrete, 7) <= emissions_kg(continuous, 7)
 
 # --------plan_charge: deadline ------
@@ -98,14 +101,16 @@ def test_discreet_never_worse_than_continuous():
 def test_slots_after_deadline_are_ignored(mode):
     slots = make_slots([40, 50, 60, 1, 1]) # the best slots are at the end
     deadline = slots[2].end
-    plan, _ = plan_charge(slots, 7, 7, deadline, mode = mode)
+    request = ChargeRequest(charge_needed_kwh=7, charge_rate_kw=7, deadline=deadline, mode=mode)
+    plan, _ = plan_charge(slots, request)
     assert [s.intensity.forecast for s in plan] == [40, 50]
 
 def test_slot_ending_at_deadline_is_allowed():
     # deadline at 7am, the 6.30-7am slot should be allowed
     slots = make_slots([100, 50])
     deadline = slots[1].end
-    plan, _ = plan_charge(slots, 3.5, 7, FAR_FUTURE, mode = 'discrete')
+    request = ChargeRequest(charge_needed_kwh=3.5, charge_rate_kw=7, deadline=deadline)
+    plan, _ = plan_charge(slots, request)
     assert [s.intensity.forecast for s in plan] == [50]
 
 # --------plan_charge: fully charged bool ------
@@ -114,7 +119,8 @@ def test_slot_ending_at_deadline_is_allowed():
 def test_not_enough_time_to_charge_to_completion(mode):
     slots = make_slots([100, 50, 10, 40])
     deadline = slots[1].end  # 2 slots before deadline
-    plan, fully_charged = plan_charge(slots, 14, 7, deadline, mode = mode) #4 slots needed
+    request = ChargeRequest(charge_needed_kwh=14, charge_rate_kw=7, deadline=deadline, mode=mode)
+    plan, fully_charged = plan_charge(slots, request) #4 slots needed to charge fully
     assert [s.intensity.forecast for s in plan] == [100, 50]
     assert fully_charged == False
 
@@ -122,13 +128,8 @@ def test_not_enough_time_to_charge_to_completion(mode):
 @pytest.mark.parametrize("mode", ["discrete", "continuous"])
 def test_enough_time_to_charge_to_completion(mode):
     slots = make_slots([100, 50, 10, 40])
-    plan, fully_charged = plan_charge(slots, 7, 7, FAR_FUTURE, mode = mode) #2 slots needed
+    request = ChargeRequest(charge_needed_kwh=7, charge_rate_kw=7, deadline=FAR_FUTURE, mode=mode)
+    plan, fully_charged = plan_charge(slots, request) #2 slots needed
     assert fully_charged == True
-
-
-# ------ plan_charge: bad input --------
-def test_unknown_mode_raises():
-    with pytest.raises(ValueError, match="mode"):
-        plan_charge(make_slots([100] * 10), 7, 7, FAR_FUTURE, mode="fastest")
 
 

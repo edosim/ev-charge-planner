@@ -7,7 +7,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, ValidationError
 
-from main import Slot, emissions_kg, fetch_forecast, plan_charge
+from main import Slot, ChargeRequest, emissions_kg, fetch_forecast, plan_charge
 
 import os
 from pathlib import Path
@@ -74,17 +74,23 @@ async def schedule(
         raise HTTPException(status_code=503, detail="No forecast data available")         
                        
     deadline = datetime.combine(deadline_date, deadline_time, tzinfo=UK)
+    request = ChargeRequest(
+         charge_needed_kwh = charge_needed_kwh,
+         charge_rate_kw = charge_rate_kw,
+         deadline = deadline,
+         mode = mode
+    )
 
     try:
-        check_deadline(deadline, slots)
+        check_deadline(request.deadline, slots)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
     #Get best slots
-    plan, fully_charged = plan_charge(slots, charge_needed_kwh, charge_rate_kw, deadline, mode=mode)
+    plan, fully_charged = plan_charge(slots, request)
     #Get emissions
-    smart_kg = emissions_kg(plan, charge_rate_kw)
-    now_kg = emissions_kg(slots[:len(plan)], charge_rate_kw)
+    smart_kg = emissions_kg(plan, request.charge_rate_kw)
+    now_kg = emissions_kg(slots[:len(plan)], request.charge_rate_kw)
     saved_kg = now_kg - smart_kg
 
     return ScheduleResponse(slots=plan,

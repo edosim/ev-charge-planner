@@ -10,6 +10,7 @@ import httpx
 from datetime import datetime, timezone
 
 from main import fetch_forecast
+                  
 
 TEST_RESPONSE = {
     'data': [
@@ -19,6 +20,8 @@ TEST_RESPONSE = {
          "intensity": {"forecast": 100, "actual": None, "index": "low"}},
         {"from": "2026-10-27T13:00Z", "to": "2026-10-27T13:30Z",
          "intensity": {"forecast": None, "actual": None, "index": "moderate"}},
+        {"from": "2026-10-27T13:30Z", "to": "2026-10-27T14:00Z",
+         "intensity": {"forecast": 100, "actual": None, "index": "low"}},
     ]
 }
 
@@ -30,7 +33,9 @@ def fetch_with(handler):
             return await fetch_forecast(client)
     return asyncio.run(run())
 
-def test_parses_response_and_excludes_missing_forecasts():
+
+
+def test_parses_response_and_excludes_all_after_missing_forecasts():
     slots = fetch_with(lambda request: httpx.Response(200, json=TEST_RESPONSE))
 
     assert len(slots) == 2
