@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
     ConfigDict,
 )
-from typing import Self, Literal
+from typing import Self, Literal, assert_never
 
 import math #for ceil
 
@@ -102,36 +102,30 @@ async def fetch_forecast(client: httpx.AsyncClient) -> list[Slot]:
 
 
 
-def plan_charge(slots: list[Slot],
-                charge_needed: float,
-                charge_rate: float,
-                deadline: datetime,
-                mode: str = "discrete") -> tuple[list[Slot], bool]:
+def plan_charge(slots: list[Slot], request: ChargeRequest) -> tuple[list[Slot], bool]:
     """Returns slots of planned charge and `bool` of whether it gets fully charged"""
     
-    if mode not in ("discrete", "continuous"):
-        raise ValueError(f"Got mode = '{mode}'. Expected 'discrete' or 'continuous'.")
-
-    slots_needed = math.ceil(charge_needed/charge_rate * 2)
-
-    slots_available = [s for s in slots if s.end <= deadline]
+    slots_available = [s for s in slots if s.end <= request.deadline]
     # If there are not enough slots charge now.
-    if slots_needed > len(slots_available):
+    if request.slots_needed > len(slots_available):
         return slots_available, False
     else:
-        if mode == "discrete":
-            # Find the best slots overall
-            greenest_slots = sorted(slots_available, key = lambda s: s.intensity.forecast)[:slots_needed]
-            return sorted(greenest_slots, key = lambda s: s.start), True
-        elif mode == "continuous":
-            #get index of first item in the window with lowest total forecast
-            idx,_ = get_smallest_window([s.intensity.forecast for s in slots_available],
-                                        slots_needed)
-            return slots_available[idx:idx + slots_needed], True
+        match request.mode:
+            case "discrete":
+                # Find the best slots overall
+                greenest_slots = sorted(slots_available, key = lambda s: s.intensity.forecast)[:request.slots_needed]
+                return sorted(greenest_slots, key = lambda s: s.start), True
+            case "continuous":
+                #get index of first item in the window with lowest total forecast
+                idx,_ = get_smallest_window([s.intensity.forecast for s in slots_available],
+                                            request.slots_needed)
+                return slots_available[idx:idx + request.slots_needed], True
+            case _:
+                assert_never(request.mode)
 
-def emissions_kg(slots: list[Slot], charge_rate):
+def emissions_kg(slots: list[Slot], charge_rate_kw):
     grams_per_energy = sum([s.intensity.forecast for s in slots])
-    grams = charge_rate * 0.5 * grams_per_energy
+    grams = charge_rate_kw * 0.5 * grams_per_energy
     return grams * 1e-3
 
 async def main():
@@ -144,15 +138,17 @@ async def main():
 
     deadline = datetime.now(timezone.utc) + timedelta(hours=1)
 
-    max_charge = 30 #kWh
-    current_charge_fraction = 0.1 # from 0 to 1
-    charge_needed = (1-current_charge_fraction) * max_charge
-    charge_rate = 7
-    mode = "continuous"
-    plan, fully_charged = plan_charge(slots, charge_needed,charge_rate,deadline,mode=mode)
+    request_input = {
+        "charge_needed_kwh": 30,
+        "charge_rate_kw": 7,
+        "deadline": deadline,
+        "mode": "continuous",
+    }
+    request = ChargeRequest.model_validate(request_input)
+    plan, fully_charged = plan_charge(slots, request)
 
     if not fully_charged:
-        charge_final = charge_rate / 2 * len(plan)
+        charge_final = request.charge_rate_kw / 2 * len(plan)
         print(f"There is not enough time for a full charge. Your vehicle will get {charge_final} kWh.")
 
     print("Your vehicle will charge at the following times.")
@@ -160,12 +156,13 @@ async def main():
         print(f"{s.start.strftime('%a %H:%M')} UTC")
 
     #Emissions saved
-    dumb = emissions_kg(slots[:len(plan)], charge_rate)
-    smart = emissions_kg(plan, charge_rate)
+    dumb = emissions_kg(slots[:len(plan)], request.charge_rate_kw)
+    smart = emissions_kg(plan, request.charge_rate_kw)
     print(f"You will save {dumb-smart:.2f} kg of CO2 vs. charging now.")
-    if mode == "continuous":
-        plan_discrete, _ = plan_charge(slots, charge_needed,charge_rate,deadline,mode="discrete")
-        smart_discrete = emissions_kg(plan_discrete, charge_rate)
+    if request.mode == "continuous":
+        request_discrete = ChargeRequest.model_validate(request_input | {"mode": "discrete"})
+        plan_discrete, _ = plan_charge(slots, request_discrete)
+        smart_discrete = emissions_kg(plan_discrete, request.charge_rate_kw)
         print(f"Choose discrete mode and save an extra {smart - smart_discrete:.2f} kg of CO2.")
 
 
