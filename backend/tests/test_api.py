@@ -211,3 +211,19 @@ def test_api_response_bad_gives_503(client):
 def test_api_empty_gives_503(client):
     fake_server(body={"data": []})
     assert client.get("/schedule", params=query_params(10)).status_code == 503
+
+
+def fake_server_text(status=200, body = "data"):
+    """Make the app talk to a fake Carbon Intensity API that returns text"""
+
+    def handler(request):
+        # what response to give (status+text)
+        return httpx.Response(status, text=body)
+
+    fake = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    app.dependency_overrides[get_client] = lambda: fake
+
+
+def test_api_not_json_gives_503(client):
+    fake_server_text(status=200)
+    assert client.get("/schedule", params=query_params(10)).status_code == 503

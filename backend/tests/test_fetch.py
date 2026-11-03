@@ -8,6 +8,7 @@ import pytest
 import asyncio
 import httpx
 from datetime import datetime, timezone
+from pydantic import ValidationError
 
 from main import fetch_forecast
                   
@@ -64,8 +65,6 @@ def test_server_error_raises():
 
 
 def test_unexpected_shape_raises():
-    from pydantic import ValidationError
-
     broken = {"data": [{"to": "2026-10-27T12:00Z"}]}       # missing "from" and "intensity"
     with pytest.raises(ValidationError):
         fetch_with(lambda request: httpx.Response(200, json=broken))

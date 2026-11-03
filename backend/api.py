@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, ValidationError
+import json
 
 from main import Slot, ChargeRequest, emissions_kg, fetch_forecast, plan_charge
 
@@ -67,7 +68,7 @@ async def schedule(
     
     try:
         slots = await fetch_forecast(client)
-    except (httpx.HTTPError, ValidationError):
+    except (httpx.HTTPError, ValidationError, json.JSONDecodeError):
         raise HTTPException(status_code=503, detail="Carbon Intensity API is unavailable")
 
     if not slots:
