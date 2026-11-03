@@ -69,6 +69,16 @@ def test_slot_rejects_wrong_slot_length():
     with pytest.raises(ValidationError):
         Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T13:00Z", "intensity": INTENSITY})
 
+def test_slot_is_frozen():
+    slot = Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T12:30Z", "intensity": INTENSITY})
+    with pytest.raises(ValidationError):
+        slot.intensity = Intensity.model_validate(INTENSITY | {"index": "low"})
+
+def test_intensity_withing_slot_is_frozen():
+    slot = Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T12:30Z", "intensity": INTENSITY})
+    with pytest.raises(ValidationError):
+        slot.intensity.forecast = 20
+
 # ---- test validation of ForecastResponse ------
 
 DATA = [

@@ -20,12 +20,16 @@ from helper_functions import get_smallest_window
 # Carbon Intensity API models
 
 class Intensity(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     forecast: int | None = Field(ge=0)
     actual: int | None = None
     index: Literal["very low", "low", "moderate", "high", "very high"]
 
 
 class Slot(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     start: AwareDatetime = Field(alias="from")
     end: AwareDatetime = Field(alias="to")
     intensity: Intensity
