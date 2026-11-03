@@ -3,12 +3,21 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 
 import httpx
-from pydantic import BaseModel, Field, AwareDatetime, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    AwareDatetime,
+    field_validator,
+    model_validator,
+    ConfigDict,
+)
 from typing import Self, Literal
 
 import math #for ceil
 
 from helper_functions import get_smallest_window
+
+# Carbon Intensity API models
 
 class Intensity(BaseModel):
     forecast: int | None = Field(ge=0)
@@ -47,6 +56,28 @@ class ForecastResponse(BaseModel):
                                  f"{previous.end:%Y-%m-%d %H:%M} UTC")
         return self
 
+# API request models
+
+class ChargeRequest(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    charge_needed_kwh: float = Field(gt=0, le=200)
+    charge_rate_kw: float = Field(gt=0, le=400)
+    deadline: AwareDatetime
+    mode: Literal["discrete", "continuous"] = "discrete"
+
+    @field_validator("deadline")
+    @classmethod
+    def to_utc(cls, value: datetime) -> datetime:
+        """Converts `deadline` field to UTC"""
+        return value.astimezone(timezone.utc)
+
+    @property
+    def slots_needed(self) -> int:
+        """Number of half-hour needed to charge, rounded up"""
+        half_hours = self.charge_needed_kwh / self.charge_rate_kw * 2
+        # round first to remove floating-point noise e.g. 2.1/0.7*2 = 6.0(0)01
+        return math.ceil(round(half_hours,6))
 
 
 BASE_URL = "https://api.carbonintensity.org.uk"
@@ -75,10 +106,10 @@ def plan_charge(slots: list[Slot],
                 charge_needed: float,
                 charge_rate: float,
                 deadline: datetime,
-                mode: str = 'discrete') -> tuple[list[Slot], bool]:
+                mode: str = "discrete") -> tuple[list[Slot], bool]:
     """Returns slots of planned charge and `bool` of whether it gets fully charged"""
     
-    if mode not in ('discrete', 'continuous'):
+    if mode not in ("discrete", "continuous"):
         raise ValueError(f"Got mode = '{mode}'. Expected 'discrete' or 'continuous'.")
 
     slots_needed = math.ceil(charge_needed/charge_rate * 2)
@@ -88,11 +119,11 @@ def plan_charge(slots: list[Slot],
     if slots_needed > len(slots_available):
         return slots_available, False
     else:
-        if mode == 'discrete':
+        if mode == "discrete":
             # Find the best slots overall
             greenest_slots = sorted(slots_available, key = lambda s: s.intensity.forecast)[:slots_needed]
             return sorted(greenest_slots, key = lambda s: s.start), True
-        elif mode == 'continuous':
+        elif mode == "continuous":
             #get index of first item in the window with lowest total forecast
             idx,_ = get_smallest_window([s.intensity.forecast for s in slots_available],
                                         slots_needed)
@@ -117,7 +148,7 @@ async def main():
     current_charge_fraction = 0.1 # from 0 to 1
     charge_needed = (1-current_charge_fraction) * max_charge
     charge_rate = 7
-    mode = 'continuous'
+    mode = "continuous"
     plan, fully_charged = plan_charge(slots, charge_needed,charge_rate,deadline,mode=mode)
 
     if not fully_charged:
@@ -132,8 +163,8 @@ async def main():
     dumb = emissions_kg(slots[:len(plan)], charge_rate)
     smart = emissions_kg(plan, charge_rate)
     print(f"You will save {dumb-smart:.2f} kg of CO2 vs. charging now.")
-    if mode == 'continuous':
-        plan_discrete, _ = plan_charge(slots, charge_needed,charge_rate,deadline,mode='discrete')
+    if mode == "continuous":
+        plan_discrete, _ = plan_charge(slots, charge_needed,charge_rate,deadline,mode="discrete")
         smart_discrete = emissions_kg(plan_discrete, charge_rate)
         print(f"Choose discrete mode and save an extra {smart - smart_discrete:.2f} kg of CO2.")
 

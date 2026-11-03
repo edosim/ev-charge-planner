@@ -4,8 +4,7 @@ import pytest
 
 from pydantic import ValidationError
 
-
-from main import Intensity, Slot, ForecastResponse
+from main import Intensity, Slot, ForecastResponse, ChargeRequest
 
 # ---- test validation of Intensity ------
 
@@ -21,9 +20,9 @@ from main import Intensity, Slot, ForecastResponse
 ])
 def test_intensity_accepts_valid_forecast_and_actual_formats(data,expected):
     intensity = Intensity.model_validate(data)
-    assert intensity.forecast == expected['forecast']
-    assert intensity.actual == expected['actual']
-    assert intensity.index == expected['index']
+    assert intensity.forecast == expected["forecast"]
+    assert intensity.actual == expected["actual"]
+    assert intensity.index == expected["index"]
 
 @pytest.mark.parametrize("index",["very low", "low", "moderate", "high", "very high"])
 def test_all_api_index_values_are_accepted(index):
@@ -88,4 +87,70 @@ def forecast_response_rejects_gap():
     with pytest.raises(ValidationError):
         ForecastResponse.model_validate(DATA)
 
-# ----------
+
+# ----- test validation of ChargeRequest --------
+
+VALID_CHARGE_REQUEST = {
+    "charge_needed_kwh": 20.5,
+    "charge_rate_kw": 7.0,
+    "deadline": "2026-10-28T12:00Z",
+    "mode": "discrete",
+}
+
+def test_chargerequest_accepts_valid_input():
+    request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST)
+    assert request.charge_needed_kwh == 20.5
+    assert request.charge_rate_kw == 7.0
+    assert request.deadline.tzinfo is not None
+    assert request.mode == "discrete"
+
+def test_no_mode_gives_discrete_in_chargerequest():
+    charge_request = {k: v for k,v in VALID_CHARGE_REQUEST.items() if k != "mode"}
+    request = ChargeRequest.model_validate(charge_request)
+    assert request.mode == "discrete"
+
+@pytest.mark.parametrize("mode",["discrete", "continuous"])
+def test_chargerequest_accepts_all_mode_values(mode):
+    request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | {"mode": mode})
+    assert request.mode == mode
+
+def test_chargerequest_converts_to_utc():
+    request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | {"deadline": "2026-10-28T13:00+01:00"})
+    assert request.deadline.hour == 12
+    assert request.deadline.utcoffset().total_seconds() == 0
+
+
+@pytest.mark.parametrize("params_to_change, slots_needed_expected",[
+    ({"charge_needed_kwh": 20.5, "charge_rate_kw": 7.0}, 6),     # 5.86 same as valid request but here for clarity
+    ({"charge_needed_kwh": 2.1, "charge_rate_kw": 0.7}, 6),      # 6.0(0)1 is 6 floating-point error should not be rounded up
+    ({"charge_needed_kwh": 28, "charge_rate_kw": 7}, 8),         # exact fit
+])
+def test_chargerequest_slots_needed_is_correct(params_to_change,slots_needed_expected):
+    request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | params_to_change)
+    assert request.slots_needed == slots_needed_expected
+
+
+@pytest.mark.parametrize("bad_input",[
+    pytest.param({"charge_needed_kwh": -1}, id="charge_needed_kwh is negative"),
+    pytest.param({"charge_needed_kwh": 0}, id="charge_needed_kwh is 0"),
+    pytest.param({"charge_needed_kwh": 500}, id="charge_needed_kwh > 200"),
+    pytest.param({"charge_rate_kw": -1}, id="charge_rate_kw is negative"),
+    pytest.param({"charge_rate_kw": 0}, id="charge_rate_kw is 0"),
+    pytest.param({"charge_rate_kw": 500}, id="charge_rate_kw > 400"),
+    pytest.param({"mode": "slots"}, id="mode is incorrect string"),
+    pytest.param({"mode": "Discrete"}, id="mode is capitalised"),
+    pytest.param({"deadline": "2026-10-28T12:00"}, id="date with no timezone info")
+],)
+def test_chargerequest_rejects_invalid_input(bad_input):
+    with pytest.raises(ValidationError):
+        ChargeRequest.model_validate(VALID_CHARGE_REQUEST | bad_input)
+
+def test_chargerequest_is_frozen():
+    request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST)
+    with pytest.raises(ValidationError):
+        request.charge_needed_kwh = 15
+
+def test_chargerequest_rejects_input_with_missing_field():
+    charge_request = {k: v for k,v in VALID_CHARGE_REQUEST.items() if k != "charge_needed_kwh"}
+    with pytest.raises(ValidationError):
+        ChargeRequest.model_validate(charge_request)
