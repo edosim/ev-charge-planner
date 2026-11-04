@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-from main import ForecastResponse, plan_charge, BASE_URL
+from main import ForecastResponse, plan_charge, ChargeRequest, BASE_URL
 
 UK = ZoneInfo("Europe/London")
 
@@ -77,7 +77,16 @@ def main(start_date, end_date):
             deadline = date_uk + timedelta(hours=12)
             
             slots_of_date = [s for s in slots if s.start >= date_uk and s.end <= date_uk + timedelta(hours=48)]
-            chosen, _ = plan_charge(slots_of_date, CHARGE_NEEDED, CHARGE_RATE, deadline, mode=mode)
+     
+            request_input = {
+                "charge_needed_kwh": CHARGE_NEEDED,
+                "charge_rate_kw": CHARGE_RATE,
+                "deadline": deadline,
+                "mode": mode,
+            }
+            request = ChargeRequest.model_validate(request_input)
+
+            chosen, _ = plan_charge(slots_of_date, request)
 
             forecasts.append(sum([s.intensity.forecast for s in chosen]))
             actuals.append(sum([s.intensity.actual for s in chosen]))
