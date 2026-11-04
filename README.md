@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/edosim/ev-charge-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/edosim/ev-charge-planner/actions/workflows/ci.yml)
 
-EV Charge Planner is a live app for planning carbon-aware charging times for electric vehicles (EVs) in the UK, based on the Carbon Intensity API (NEPO) forecast of CO₂ emitted by the grid per kWh in the next 48h.
+EV Charge Planner is a live app for planning carbon-aware charging times for electric vehicles (EVs) in the UK, based on the Carbon Intensity API (NESO) forecast of CO₂ emitted by the grid per kWh in the next 48h.
 
 
 **Live demo:** [ev-charge-planner-742443010251.europe-west1.run.app](https://ev-charge-planner-742443010251.europe-west1.run.app)
@@ -38,6 +38,19 @@ In September 2026, EV Charge Planner would have reduced emissions by 25%. Check 
 | Testing   | pytest, Vitest, ESLint                                    |
 | Delivery  | Docker, GitHub Actions, Google Cloud Run    |
 
+## Design decisions
+
+- **Domain models:** Pydantic models guarantee the planner only receives valid data. Forecast slots must be timezone-aware, 30 minutes long and consecutive, which the scheduling and emissions code rely on. `ChargeRequest` is an immutable value object that derives the number of slots needed.
+- **Context-dependent rules:** checks like "the deadline is in the future" depend on the current time and forecast, so they live in the endpoint. This keeps historical requests valid in the savings study and keeps tests independent of the clock.
+- **Unused fields:** validation rejects bad values in fields the planner uses, but doesn't constrain unused fields, so an odd value the app ignores can't take the service down.
+- **Missing forecast values:** if a forecast value is missing, the app uses the unbroken run of slots before it, so continuous mode never spans a gap.
+- **Scheduling modes:** discrete picks the greenest slots anywhere; continuous finds the best unbroken block with a sliding window.
+- **Time zones:** all times are UTC inside the app; UK time is used only for display.
+- **HTTP client:** one shared `httpx.AsyncClient` is created at startup and passed in with dependency injection, so tests can swap in a fake server.
+- **Frontend types:** TypeScript types mirror the Pydantic response models.
+- **Serving the frontend:** FastAPI serves both the API and the built React page, so there is one container to deploy.
+- **Docker image:** a multi-stage Docker build ships only Python and the built page, and runs as a non-root user.
+- **Cloud Run configuration:** the service runs as an account with no permissions, scales to zero, is capped at one instance, and has a spend cap.
 
 ## Repository structure
 
@@ -78,7 +91,7 @@ Go to http://localhost:5173.
 docker build -t ev-charge-planner .
 docker run --rm -p 8080:8080 ev-charge-planner
 ```
-Open http://localhost:8080.
+Go to http://localhost:8080.
 
 
 ## Tests
@@ -98,6 +111,12 @@ npm run test
 ```
 
 GitHub Actions runs these on every push and checks that the Docker image can be built.
+
+## Future features
+
+- Regional forecasts
+- Price-aware charging
+- Cache the forecast API.
 
 ## Forecast data
 
