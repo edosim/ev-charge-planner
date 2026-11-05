@@ -8,7 +8,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, ValidationError
 import json
 
-from main import Slot, ChargeRequest, emissions_kg, fetch_forecast, plan_charge
+from main import emissions_kg, fetch_forecast, plan_charge
+from schemas import Slot, ChargeRequest
 
 import os
 from pathlib import Path

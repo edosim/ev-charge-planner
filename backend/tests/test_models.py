@@ -4,7 +4,7 @@ import pytest
 
 from pydantic import ValidationError
 
-from main import Intensity, Slot, ForecastResponse, ChargeRequest
+from schemas import Intensity, Slot, ForecastResponse, ChargeRequest
 
 # ---- test validation of Intensity ------
 

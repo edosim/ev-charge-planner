@@ -10,7 +10,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from api import check_deadline, app, get_client, UK
-from main import Slot
+from schemas import Slot
 
 # ----- check_deadline: past and after 48h deadlines ----
 

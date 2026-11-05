@@ -2,49 +2,9 @@ import asyncio
 import httpx
 
 from datetime import datetime, timezone, timedelta
-from main import Slot, fetch_forecast, plan_charge,ChargeRequest
+from main import fetch_forecast, plan_charge
+from schemas import PricesResponse, Price, Slot, ChargeRequest
 
-from pydantic import (
-    BaseModel,
-    Field,
-    AwareDatetime,
-    field_validator,
-    model_validator,
-    ConfigDict,
-)
-
-from typing import Self
-
-class Price(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    value_exc_vat: float
-    value_inc_vat: float
-    start: AwareDatetime = Field(alias="valid_from")
-    end: AwareDatetime = Field(alias="valid_to")
-    payment_method: str | None
-
-    @field_validator("start", "end")
-    @classmethod
-    def to_utc(cls, value: datetime) -> datetime:
-        """Converts `start` and `end` fields to UTC"""
-        return value.astimezone(timezone.utc)
-
-
-class PricesResponse(BaseModel):
-    count: int
-    next: str | None
-    previous: str | None
-    prices: list[Price] = Field(alias="results")
-
-    @model_validator(mode="after")
-    def check_consecutive(self) -> Self:
-        """Check that a slot end time is the same as the next's start time"""
-        for previous, current in zip(self.prices[:-1],self.prices[1:]):
-            if previous.end != current.start:
-                raise ValueError("Slots must be consecutive. Found a gap after"
-                                 f"{previous.end:%Y-%m-%d %H:%M} UTC")
-        return self
 
 
 PRODUCT_CODE = "AGILE-24-10-01"
@@ -100,7 +60,8 @@ async def main():
     for p in plan_prices:
         print(p.start.time())
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 
 
 
