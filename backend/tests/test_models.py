@@ -4,8 +4,11 @@ import pytest
 
 from pydantic import ValidationError
 
-from schemas import Intensity, Slot, ForecastResponse, ChargeRequest
-
+from schemas import (
+    Intensity, Slot, ForecastResponse,
+    Price, PricesResponse,
+    ChargeRequest
+)
 # ---- test validation of Intensity ------
 
 @pytest.mark.parametrize("data, expected",[
@@ -65,16 +68,12 @@ def test_slot_rejects_wrong_slot_length():
     with pytest.raises(ValidationError):
         Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T13:00Z", "intensity": INTENSITY})
 
-def test_slot_rejects_wrong_slot_length():
-    with pytest.raises(ValidationError):
-        Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T13:00Z", "intensity": INTENSITY})
-
 def test_slot_is_frozen():
     slot = Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T12:30Z", "intensity": INTENSITY})
     with pytest.raises(ValidationError):
         slot.intensity = Intensity.model_validate(INTENSITY | {"index": "low"})
 
-def test_intensity_withing_slot_is_frozen():
+def test_intensity_within_slot_is_frozen():
     slot = Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T12:30Z", "intensity": INTENSITY})
     with pytest.raises(ValidationError):
         slot.intensity.forecast = 20
@@ -164,3 +163,84 @@ def test_chargerequest_rejects_input_with_missing_field():
     charge_request = {k: v for k,v in VALID_CHARGE_REQUEST.items() if k != "charge_needed_kwh"}
     with pytest.raises(ValidationError):
         ChargeRequest.model_validate(charge_request)
+
+
+# Test validation of agile API response
+OCTOPUS_RESPONSE = {
+    "count": 2,
+    "next": None,
+    "previous": None,
+    "results": [
+        {
+        "value_exc_vat": 41.94,
+        "value_inc_vat": 41.94,
+        "valid_from": "2026-11-06T22:30:00Z",
+        "valid_to": "2026-11-06T23:00:00Z",
+        "payment_method": None
+        },
+        {
+        "value_exc_vat": 42.91,
+        "value_inc_vat": 42.91,
+        "valid_from": "2026-11-06T22:00:00Z",
+        "valid_to": "2026-11-06T22:30:00Z",
+        "payment_method": None
+        },
+    ]
+}
+
+# Price half an hour earlier to simulate gap
+PRICE = {
+    "value_exc_vat": 42.91,
+    "value_inc_vat": 42.91,
+    "valid_from": "2026-11-06T21:00:00Z",
+    "valid_to": "2026-11-06T21:30:00Z",
+    "payment_method": None
+}
+
+# ---------- Test PricesResponse -------------
+
+def test_price_response_accepts_valid_response_and_sorts_prices():
+    response = PricesResponse.model_validate(OCTOPUS_RESPONSE)
+    assert response.count == 2
+    assert response.next == None
+    assert response.previous == None
+    assert len(response.prices) == 2
+    assert response.prices[0].start < response.prices[1].start
+
+def test_price_response_rejects_gap():
+    # Add price to OCTOPUS_RESPONSE that ends half an hour before the first price in prices
+    response_gapped = OCTOPUS_RESPONSE | {"results": OCTOPUS_RESPONSE["results"] + [PRICE]}
+    with pytest.raises(ValidationError):
+        PricesResponse.model_validate(response_gapped)
+
+# -------- Test Price -----------
+
+def test_price_accepts_api_format():
+    price = Price.model_validate(PRICE)
+    assert price.value_exc_vat == 42.91
+    assert price.start.tzinfo is not None
+
+def test_price_converts_to_utc():
+    price_response = (PRICE
+                    | {"valid_from": "2026-11-06T21:00:00+01:00",
+                       "valid_to": "2026-11-06T21:30:00+01:00"})
+    price = Price.model_validate(price_response)
+    assert price.start.hour == 20
+    assert price.start.utcoffset().total_seconds() == 0
+
+def price_price_rejects_time_without_timezone():
+    price_response = (PRICE | {"valid_from": "2026-11-06T21:00:00",
+                               "valid_to": "2026-11-06T21:30:00"})
+
+    with pytest.raises(ValidationError):
+        Price.model_validate(price_response)
+
+def test_price_rejects_wrong_slot_length():
+    price_response = (PRICE | {"valid_from": "2026-11-06T20:30:00Z"})
+    with pytest.raises(ValidationError):
+        Price.model_validate(price_response)
+
+def test_price_is_frozen():
+    price = Price.model_validate(PRICE)
+    with pytest.raises(ValidationError):
+        price.count = 1
