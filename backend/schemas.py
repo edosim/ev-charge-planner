@@ -94,6 +94,14 @@ class Price(BaseModel):
     def to_utc(cls, value: datetime) -> datetime:
         """Converts `start` and `end` fields to UTC"""
         return value.astimezone(timezone.utc)
+    
+    @model_validator(mode="after")
+    def check_half_hour(self) -> Self:
+        """Checks that slot end is exactly 30 min after start."""
+        if self.end - self.start != timedelta(minutes=30):
+            raise ValueError("A slot must be 30 minutes long. "
+                             f"Got {(self.end - self.start).total_seconds()/60} minutes")
+        return self
 
 
 class PricesResponse(BaseModel):
