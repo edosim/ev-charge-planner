@@ -102,12 +102,18 @@ class PricesResponse(BaseModel):
     previous: str | None
     prices: list[Price] = Field(alias="results")
 
+    @field_validator("prices")
+    @classmethod
+    def time_sorted(cls, prices: list) -> list:
+        """Sorts prices by time as they are in reverse chronological order"""
+        return sorted(prices,key=lambda p: p.start)
+
     @model_validator(mode="after")
     def check_consecutive(self) -> Self:
         """Check that a slot end time is the same as the next's start time"""
         for previous, current in zip(self.prices[:-1],self.prices[1:]):
             if previous.end != current.start:
-                raise ValueError("Slots must be consecutive. Found a gap after"
+                raise ValueError("Slots must be consecutive. Found a gap after "
                                  f"{previous.end:%Y-%m-%d %H:%M} UTC")
         return self
 

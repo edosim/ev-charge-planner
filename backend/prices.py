@@ -8,7 +8,7 @@ from schemas import PricesResponse, Price, Slot, ChargeRequest
 
 
 PRODUCT_CODE = "AGILE-24-10-01"
-TARIFF_CODE = "E-1R-AGILE-24-10-01-C"
+TARIFF_CODE = "E-1R-AGILE-24-10-01-C" # C at the end is london for now
 BASE_URL = "https://api.octopus.energy/v1/products"
 
 endpoint = BASE_URL + f"/{PRODUCT_CODE}/electricity-tariffs/{TARIFF_CODE}/standard-unit-rates/"
