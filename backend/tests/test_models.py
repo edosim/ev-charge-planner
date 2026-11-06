@@ -88,13 +88,13 @@ DATA = [
     {"from": "2026-10-27T14:00Z", "to": "2026-10-27T14:30Z", "intensity": INTENSITY}, 
 ]
 
-def forecast_response_accepts_api_format():
-    ForecastResponse.model_validate(DATA[:3])
-    assert len(ForecastResponse) == len(3)
+def test_forecast_response_accepts_api_format():
+    response = ForecastResponse.model_validate({"data": DATA[:3]})
+    assert len(response.data) == 3
 
-def forecast_response_rejects_gap():
+def test_forecast_response_rejects_gap():
     with pytest.raises(ValidationError):
-        ForecastResponse.model_validate(DATA)
+        ForecastResponse.model_validate({"data": DATA})
 
 
 # ----- test validation of ChargeRequest --------
@@ -228,7 +228,7 @@ def test_price_converts_to_utc():
     assert price.start.hour == 20
     assert price.start.utcoffset().total_seconds() == 0
 
-def price_price_rejects_time_without_timezone():
+def test_price_rejects_time_without_timezone():
     price_response = (PRICE | {"valid_from": "2026-11-06T21:00:00",
                                "valid_to": "2026-11-06T21:30:00"})
 
