@@ -42,6 +42,15 @@ class Slot(BaseModel):
                              f"Got {(self.end - self.start).total_seconds()/60} minutes")
         return self
 
+    @property
+    def forecast(self) -> int:
+        """Forecast intensity. Only call this on slots known to have a forecast."""
+        # I added this for mypy and to avoid sorted and sum
+        # If a slot as None, all the slots after it are removed when the request is fetched.
+        if self.intensity.forecast is None:
+            raise ValueError(f"Slot starting {self.start} has no forecast")
+        return self.intensity.forecast
+    
 class ForecastResponse(BaseModel):
     data: list[Slot]
 

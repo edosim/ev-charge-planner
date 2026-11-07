@@ -39,22 +39,22 @@ def plan_charge(slots: list[Slot], request: ChargeRequest) -> tuple[list[Slot], 
         match request.mode:
             case "discrete":
                 # Find the best slots overall
-                greenest_slots = sorted(slots_available, key = lambda s: s.intensity.forecast)[:request.slots_needed]
+                greenest_slots = sorted(slots_available, key = lambda s: s.forecast)[:request.slots_needed]
                 return sorted(greenest_slots, key = lambda s: s.start), True
             case "continuous":
                 #get index of first item in the window with lowest total forecast
-                idx,_ = get_smallest_window([s.intensity.forecast for s in slots_available],
+                idx,_ = get_smallest_window([s.forecast for s in slots_available],
                                             request.slots_needed)
                 return slots_available[idx:idx + request.slots_needed], True
             case _:
                 assert_never(request.mode)
 
-def emissions_kg(slots: list[Slot], charge_rate_kw):
-    grams_per_energy = sum([s.intensity.forecast for s in slots])
+def emissions_kg(slots: list[Slot], charge_rate_kw: float) -> float:
+    grams_per_energy = sum([s.forecast for s in slots])
     grams = charge_rate_kw * 0.5 * grams_per_energy
     return grams * 1e-3
 
-async def main():
+async def main() -> None:
     async with httpx.AsyncClient() as client:
         slots = await fetch_forecast(client)
 
