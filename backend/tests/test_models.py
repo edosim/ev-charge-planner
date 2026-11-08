@@ -3,7 +3,7 @@
 import pytest
 
 from pydantic import ValidationError
-
+from datetime import timezone
 from main import Intensity, Slot, ForecastResponse, ChargeRequest
 
 # ---- test validation of Intensity ------
@@ -55,7 +55,7 @@ def test_slot_accepts_api_format():
 def test_slot_converts_to_utc():
     slot = Slot.model_validate({"from": "2026-10-28T13:00+01:00", "to": "2026-10-28T13:30+01:00", "intensity": INTENSITY})
     assert slot.start.hour == 12
-    assert slot.start.utcoffset().total_seconds() == 0
+    assert slot.start.tzinfo == timezone.utc
 
 def test_slot_rejects_time_without_timezone():
     with pytest.raises(ValidationError):
@@ -65,19 +65,15 @@ def test_slot_rejects_wrong_slot_length():
     with pytest.raises(ValidationError):
         Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T13:00Z", "intensity": INTENSITY})
 
-def test_slot_rejects_wrong_slot_length():
-    with pytest.raises(ValidationError):
-        Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T13:00Z", "intensity": INTENSITY})
-
 def test_slot_is_frozen():
     slot = Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T12:30Z", "intensity": INTENSITY})
     with pytest.raises(ValidationError):
-        slot.intensity = Intensity.model_validate(INTENSITY | {"index": "low"})
+        slot.intensity = Intensity.model_validate(INTENSITY | {"index": "low"}) # type: ignore[misc]
 
 def test_intensity_withing_slot_is_frozen():
     slot = Slot.model_validate({"from": "2026-10-28T12:00Z", "to": "2026-10-28T12:30Z", "intensity": INTENSITY})
     with pytest.raises(ValidationError):
-        slot.intensity.forecast = 20
+        slot.intensity.forecast = 20 # type: ignore[misc]
 
 # ---- test validation of ForecastResponse ------
 
@@ -90,8 +86,8 @@ DATA = [
 ]
 
 def forecast_response_accepts_api_format():
-    ForecastResponse.model_validate(DATA[:3])
-    assert len(ForecastResponse) == len(3)
+    data = ForecastResponse.model_validate(DATA[:3]).data
+    assert len(data) == 3
 
 def forecast_response_rejects_gap():
     with pytest.raises(ValidationError):
@@ -127,7 +123,7 @@ def test_chargerequest_accepts_all_mode_values(mode):
 def test_chargerequest_converts_to_utc():
     request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | {"deadline": "2026-10-28T13:00+01:00"})
     assert request.deadline.hour == 12
-    assert request.deadline.utcoffset().total_seconds() == 0
+    assert request.deadline.tzinfo == timezone.utc
 
 
 @pytest.mark.parametrize("params_to_change, slots_needed_expected",[
@@ -158,7 +154,7 @@ def test_chargerequest_rejects_invalid_input(bad_input):
 def test_chargerequest_is_frozen():
     request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST)
     with pytest.raises(ValidationError):
-        request.charge_needed_kwh = 15
+        request.charge_needed_kwh = 15 # type: ignore[misc]
 
 def test_chargerequest_rejects_input_with_missing_field():
     charge_request = {k: v for k,v in VALID_CHARGE_REQUEST.items() if k != "charge_needed_kwh"}

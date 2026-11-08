@@ -7,6 +7,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, ValidationError
 import json
+from collections.abc import AsyncGenerator
 
 from main import Slot, ChargeRequest, emissions_kg, fetch_forecast, plan_charge
 
@@ -20,7 +21,7 @@ UK = ZoneInfo("Europe/London")
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async with httpx.AsyncClient() as client:
         app.state.client = client      # created once when the server starts
         yield                          # the server runs here
@@ -30,7 +31,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="EV Charge Planner", lifespan=lifespan)
 
 def get_client(request: Request) -> httpx.AsyncClient:
-    return request.app.state.client
+      client: httpx.AsyncClient = request.app.state.client
+      return client
 
 #  what the endpoint sends back 
 class ScheduleResponse(BaseModel):
@@ -43,7 +45,7 @@ class ScheduleResponse(BaseModel):
 
 
 def check_deadline(deadline: datetime, slots: list[Slot],
-                   now: datetime | None = None):
+                   now: datetime | None = None) -> None:
     """Check that the deadline is in the data from the Carbon Intensity API,
     and after now."""
     if now is None:
@@ -64,7 +66,7 @@ async def schedule(
     charge_rate_kw: float = Query(7, gt=0, le=400, description="Charge power in kW"),
     mode: Literal["discrete","continuous"] = "discrete",
     client: httpx.AsyncClient = Depends(get_client),
-):
+) -> ScheduleResponse:
     
     try:
         slots = await fetch_forecast(client)
