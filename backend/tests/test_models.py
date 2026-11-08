@@ -103,7 +103,9 @@ def test_forecast_response_rejects_gap():
     with pytest.raises(ValidationError):
         ForecastResponse.model_validate({"data": DATA})
 
-
+def test_forecast_gap_message_is_readable():
+    with pytest.raises(ValidationError, match=r"gap after \d{4}-"):
+        ForecastResponse.model_validate({"data": DATA})
 # ----- test validation of ChargeRequest --------
 
 VALID_CHARGE_REQUEST = {
@@ -220,6 +222,10 @@ def test_price_response_rejects_gap():
     with pytest.raises(ValidationError):
         PricesResponse.model_validate(response_gapped)
 
+def test_price_gap_message_is_readable():
+    response_gapped = OCTOPUS_RESPONSE | {"results": OCTOPUS_RESPONSE["results"] + [PRICE]}
+    with pytest.raises(ValidationError, match=r"gap after \d{4}-"):
+        PricesResponse.model_validate(response_gapped)
 # -------- Test Price -----------
 
 def test_price_accepts_api_format():

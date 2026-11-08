@@ -6,7 +6,7 @@ import httpx
 from typing import assert_never
 
 from helper_functions import get_smallest_window
-from schemas import ForecastResponse, Slot, ChargeRequest
+from schemas import ForecastResponse, Slot, ChargeRequest, SLOT_HOURS
 
 BASE_URL = "https://api.carbonintensity.org.uk"
 
@@ -50,8 +50,8 @@ def plan_charge(slots: list[Slot], request: ChargeRequest) -> tuple[list[Slot], 
                 assert_never(request.mode)
 
 def emissions_kg(slots: list[Slot], charge_rate_kw: float) -> float:
-    grams_per_energy = sum([s.forecast for s in slots])
-    grams = charge_rate_kw * 0.5 * grams_per_energy
+    grams_per_energy = sum(s.forecast for s in slots)
+    grams = charge_rate_kw * SLOT_HOURS * grams_per_energy
     return grams * 1e-3
 
 async def main() -> None:
@@ -74,7 +74,7 @@ async def main() -> None:
     plan, fully_charged = plan_charge(slots, request)
 
     if not fully_charged:
-        charge_final = request.charge_rate_kw / 2 * len(plan)
+        charge_final = request.charge_rate_kw * SLOT_HOURS * len(plan)
         print(f"There is not enough time for a full charge. Your vehicle will get {charge_final} kWh.")
 
     print("Your vehicle will charge at the following times.")

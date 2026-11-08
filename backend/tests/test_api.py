@@ -2,7 +2,7 @@
 """
 
 import pytest
-from helpers import make_slots, T0, FAR_FUTURE
+from helpers import make_slots, make_prices, T0, FAR_FUTURE
 
 
 from datetime import datetime, time, timedelta, date, timezone
@@ -58,19 +58,27 @@ def forecast_json(forecasts: list[int]):
     slots = make_slots(forecasts, start=start_of_first_slot())
     return {"data": [s.model_dump(mode='json', by_alias=True) for s in slots]}
 
+def prices_json(values: list[float]):
+    prices = make_prices(values, start=start_of_first_slot())
+    results = [p.model_dump(mode="json", by_alias=True) for p in reversed(prices)]  # Octopus is newest-first
+    return {"count": len(results), "next": None, "previous": None, "results": results}
 
-def fake_server(forecasts=None, status=200, body=None):
-    """Make the app talk to a fake Carbon Intensity API."""
+
+def fake_server(forecasts=None, status=200, body=None,
+                prices=None, price_status=200, price_body=None):
+    """Fake both APIs; route by host so each can succeed/fail independently."""
     if body is None:
-        body = forecast_json(forecasts if forecasts is not None else [50] * 96) #48h
+        body = forecast_json(forecasts if forecasts is not None else [50] * 96)
+    if price_body is None:
+        price_body = prices_json(prices if prices is not None else [20] * 96)
 
     def handler(request):
-        # what response to give (status+json)
+        if request.url.host == "api.octopus.energy":
+            return httpx.Response(price_status, json=price_body)
         return httpx.Response(status, json=body)
 
     fake = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     app.dependency_overrides[get_client] = lambda: fake
-
 
 @pytest.fixture
 def client():
@@ -164,6 +172,19 @@ def test_fully_charged_is_correct(client, hours_from_now, expected_fully_charged
     response = client.get("/schedule",params=query_params(hours_from_now))
     assert response.json()['fully_charged'] == expected_fully_charged
 
+def test_total_price_is_correct(client):
+    fake_server(forecasts=[200, 200, 50, 100] + [200] * 92,
+                prices=[1, 2, 30, 40] + [100] * 92)
+    data = client.get("/schedule", params=query_params(10, charge_needed_kwh=7)).json()
+    # plan = slots 2,3 -> (30 + 40) * 0.5 * 7 = 245 p
+    assert data["price_status"] == "ok"
+    assert data["total_price_p"] == 245
+
+def test_total_price_is_whole_pence(client):
+    fake_server(prices=[10.37] * 96)
+    data = client.get("/schedule", params=query_params(10, charge_needed_kwh=7)).json()
+    assert isinstance(data["total_price_p"], int)    # 10.37*2*3.5 = 72.59 -> 73
+    assert data["total_price_p"] == 73
 
 # --------- deadline errors (check_deadline through API)----------
 
@@ -227,3 +248,25 @@ def fake_server_text(status=200, body = "data"):
 def test_api_not_json_gives_503(client):
     fake_server_text(status=200)
     assert client.get("/schedule", params=query_params(10)).status_code == 503
+
+# --- Price problems ------
+
+@pytest.mark.parametrize("price_status, price_body", [
+    (500, {}),                                        # Octopus is down
+    (200, {"results": [{"value_exc_vat": 1}]}),       # octopus returns wrong shape
+])
+def test_octopus_failure_returns_plan(client, price_status, price_body):
+    fake_server(price_status=price_status, price_body=price_body)
+    response = client.get("/schedule", params=query_params(10))
+    assert response.status_code == 200
+    assert response.json()["slots"]                   # plan still there
+    assert response.json()["price_status"] == "unavailable"
+    assert response.json()["total_price_p"] is None
+
+def test_prices_not_covering_plan_gives_not_published(client):
+    fake_server(forecasts=[200, 200, 50, 100] + [200] * 92,
+                prices=[10, 10])                      # only first hour published
+    data = client.get("/schedule", params=query_params(10, charge_needed_kwh=7)).json()
+    assert data["price_status"] == "not_published"
+    assert data["total_price_p"] is None
+    

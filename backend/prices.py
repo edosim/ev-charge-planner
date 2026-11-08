@@ -2,10 +2,8 @@ import asyncio
 import httpx
 
 from datetime import datetime, timezone, timedelta
-from typing import Any
 
-from main import fetch_forecast, plan_charge
-from schemas import PricesResponse, Price, Slot, ChargeRequest
+from schemas import PricesResponse, Price, Slot, ChargeRequest, SLOT_HOURS
 
 
 
@@ -13,32 +11,32 @@ PRODUCT_CODE = "AGILE-24-10-01"
 TARIFF_CODE = "E-1R-AGILE-24-10-01-C" # C at the end is london for now
 BASE_URL = "https://api.octopus.energy/v1/products"
 
-endpoint = BASE_URL + f"/{PRODUCT_CODE}/electricity-tariffs/{TARIFF_CODE}/standard-unit-rates/"
-
-now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
-params = {
-    "period_from": now
-}
+ENDPOINT = BASE_URL + f"/{PRODUCT_CODE}/electricity-tariffs/{TARIFF_CODE}/standard-unit-rates/"
 
 
-async def fetch_prices(client: httpx.AsyncClient, params: dict[str, Any]) -> PricesResponse:
 
-    resp = await client.get(endpoint, params=params,timeout=10)
+async def fetch_prices(client: httpx.AsyncClient) -> PricesResponse:
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    resp = await client.get(ENDPOINT, params={"period_from": now},timeout=10)
     resp.raise_for_status()
     return PricesResponse.model_validate(resp.json())
 
 
-def plan_price(prices: list[Price], slots: list[Slot]) -> list[Price]:
-    """Return prices of slots"""
-    slots_starts = [s.start for s in slots]
-    prices_chosen = [r for r in prices if r.start in slots_starts]
+def get_total_price(prices: list[Price], slots: list[Slot], charge_rate_kw: float) -> float | None:
+    """Return total price of slots if available for all slots. Otherwise, `None`"""
+    slots_start = {s.start for s in slots}
+    prices_chosen = [r for r in prices if r.start in slots_start]
 
-    return sorted(prices_chosen, key=lambda p: p.start)
+    if len(prices_chosen) != len(slots):
+        return None
+    return sum(p.value_inc_vat for p in prices_chosen) * SLOT_HOURS * charge_rate_kw
 
 async def main() -> None:
+    from main import fetch_forecast, plan_charge
+
     #get prices
     async with httpx.AsyncClient() as client:
-        response = await fetch_prices(client, params)
+        response = await fetch_prices(client)
     prices = response.prices
     #get carbon intensity slots
     async with httpx.AsyncClient() as client:
@@ -56,9 +54,11 @@ async def main() -> None:
 
     for s in plan:
         print(s.start.time())
-    plan_prices = plan_price(prices, plan)
-    for p in plan_prices:
-        print(p.start.time())
+    price_total = get_total_price(prices, plan, request.charge_rate_kw)
+    if price_total is not None:
+        print(f"£{price_total/100:.2f}")
+    else:
+        print("Prices are not available for all slots.")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -10,6 +10,7 @@ import json
 from collections.abc import AsyncGenerator
 
 from main import emissions_kg, fetch_forecast, plan_charge
+from prices import fetch_prices, get_total_price
 from schemas import Slot, ChargeRequest
 
 import os
@@ -35,6 +36,7 @@ def get_client(request: Request) -> httpx.AsyncClient:
     client: httpx.AsyncClient = request.app.state.client
     return client
 
+PriceStatus = Literal["ok", "unavailable", "not_published"]
 #  what the endpoint sends back 
 class ScheduleResponse(BaseModel):
     slots: list[Slot]
@@ -43,6 +45,8 @@ class ScheduleResponse(BaseModel):
     charge_now_kg: float
     saved_kg: float
     fully_charged: bool
+    total_price_p: int | None
+    price_status: PriceStatus
 
 
 def check_deadline(deadline: datetime, slots: list[Slot],
@@ -89,6 +93,13 @@ async def schedule(
         check_deadline(request.deadline, slots)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    
+    # Fetch prices
+    try:
+        prices = (await fetch_prices(client)).prices
+    except (httpx.HTTPError, ValidationError, json.JSONDecodeError):
+        # if prices cannot be fetched just return without prices
+        prices = None
 
     #Get best slots
     plan, fully_charged = plan_charge(slots, request)
@@ -97,12 +108,26 @@ async def schedule(
     now_kg = emissions_kg(slots[:len(plan)], request.charge_rate_kw)
     saved_kg = now_kg - smart_kg
 
+    #get total price
+    total_price_p: int | None = None
+    if prices is None:
+        price_status: PriceStatus = "unavailable"        # Octopus failed
+    else:
+        total = get_total_price(prices, plan, request.charge_rate_kw)
+        if total is None:
+            price_status = "not_published"               # plan goes past the published prices
+        else:
+            price_status = "ok"
+            total_price_p = round(total)
+
     return ScheduleResponse(slots=plan,
                             forecast=slots,
                             emissions_kg=round(smart_kg,3),
                             charge_now_kg=round(now_kg,3),
                             saved_kg=round(saved_kg, 3), #same precision as two above
-                            fully_charged=fully_charged
+                            fully_charged=fully_charged,
+                            total_price_p=total_price_p,
+                            price_status=price_status,
     )
 
 

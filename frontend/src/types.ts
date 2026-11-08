@@ -12,6 +12,8 @@ export type Slot = {
     intensity: Intensity;
 };
 
+export type PriceStatus = 'ok' | 'unavailable' | 'not_published';
+
 export type ScheduleResponse = {
     slots: Slot[];
     forecast: Slot[];
@@ -19,4 +21,6 @@ export type ScheduleResponse = {
     charge_now_kg: number;
     saved_kg: number;
     fully_charged: boolean;
+    total_price_p: number | null;   // pence
+    price_status: PriceStatus;
 }

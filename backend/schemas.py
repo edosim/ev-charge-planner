@@ -11,6 +11,9 @@ from typing import Self, Literal
 from datetime import datetime, timedelta, timezone
 import math
 
+# Duration of a slot
+SLOT_HOURS = 0.5
+
 # Carbon Intensity API models
 
 class Intensity(BaseModel):
@@ -59,7 +62,7 @@ class ForecastResponse(BaseModel):
         """Check that a slot end time is the same as the next's start time"""
         for previous, current in zip(self.data[:-1],self.data[1:]):
             if previous.end != current.start:
-                raise ValueError("Slots must be consecutive. Found a gap after"
+                raise ValueError("Slots must be consecutive. Found a gap after "
                                  f"{previous.end:%Y-%m-%d %H:%M} UTC")
         return self
 

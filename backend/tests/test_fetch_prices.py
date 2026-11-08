@@ -6,7 +6,7 @@ import pytest
 
 import asyncio
 import httpx
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import ValidationError
 
 from prices import fetch_prices, TARIFF_CODE, PRODUCT_CODE
@@ -49,16 +49,14 @@ BAD_SHAPE_RESPONSE = {
     "results": [{"value_exc_vat": 41.94},]
 }
 
-PARAMS = {
-    "period_from": "2026-11-06T22:00:00Z"
-}
+
 
 def fetch_with(handler):
     """Run fetch with a fake server"""
     async def run():
         transport = httpx.MockTransport(handler)
         async with httpx.AsyncClient(transport=transport) as client:
-            return await fetch_prices(client, PARAMS)
+            return await fetch_prices(client)
     return asyncio.run(run())
 
 def test_parses_response():
@@ -93,3 +91,13 @@ def test_server_error_raises():
 def test_unexpected_shape_raises():
     with pytest.raises(ValidationError):
         fetch_with(lambda request: httpx.Response(200, json=BAD_SHAPE_RESPONSE))
+
+def test_requests_prices_from_now():
+    seen = []
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json=TEST_RESPONSE)
+    fetch_with(handler)
+
+    period_from = datetime.fromisoformat(seen[0].url.params["period_from"])
+    assert abs(period_from - datetime.now(timezone.utc)) < timedelta(minutes=2)
