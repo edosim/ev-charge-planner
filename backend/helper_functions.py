@@ -7,7 +7,7 @@ def get_smallest_window(nums: list, n: int) -> tuple[int, list[int]]:
     min_sum_idx = 0
 
     for i in range(1,len(nums) + 1 - n):
-        current_sum = sum(nums[i:i + n])
+        current_sum = current_sum - nums[i-1] + nums[i+n-1]
         if current_sum < min_sum:
             min_sum = current_sum
             min_sum_idx = i
