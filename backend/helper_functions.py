@@ -1,4 +1,4 @@
-def get_smallest_window(nums: list, n: int):
+def get_smallest_window(nums: list, n: int) -> tuple[int, list[int]]:
     """Gets the first smallest window"""
 
     #Keep tabs of current sum, minumum sum and the index of the minumum sum
