@@ -5,7 +5,10 @@ import pytest
 from pydantic import ValidationError
 from datetime import timezone
 from main import Intensity, Slot, ForecastResponse, ChargeRequest
-
+from constants import (
+    MAX_CHARGE_KWH, MIN_CHARGE_KWH,
+    MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
+)
 # ---- test validation of Intensity ------
 
 @pytest.mark.parametrize("data, expected",[
@@ -127,7 +130,7 @@ def test_chargerequest_converts_to_utc():
 
 
 @pytest.mark.parametrize("params_to_change, slots_needed_expected",[
-    ({"charge_needed_kwh": 20.5, "charge_rate_kw": 7.0}, 6),     # 5.86 same as valid request but here for clarity
+    ({"charge_needed_kwh": 20.5, "charge_rate_kw": 7.0}, 6),     # 5.86 same as test valid request but here for clarity
     ({"charge_needed_kwh": 2.1, "charge_rate_kw": 0.7}, 6),      # 6.0(0)1 is 6 floating-point error should not be rounded up
     ({"charge_needed_kwh": 28, "charge_rate_kw": 7}, 8),         # exact fit
 ])
@@ -135,14 +138,23 @@ def test_chargerequest_slots_needed_is_correct(params_to_change,slots_needed_exp
     request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | params_to_change)
     assert request.slots_needed == slots_needed_expected
 
+@pytest.mark.parametrize("field, value",[
+    pytest.param("charge_needed_kwh", MAX_CHARGE_KWH, id="charge_needed_kwh at max"),
+    pytest.param("charge_needed_kwh", MIN_CHARGE_KWH + 1e-6, id="charge_needed_kwh just above minimum"),
+    pytest.param("charge_rate_kw", MAX_CHARGE_RATE_KW, id="charge_rate_kw at max"),
+    pytest.param("charge_rate_kw", MIN_CHARGE_KWH + 1e-6, id="charge_rate_kw just above min"),
+],)
+def test_chargerequest_accepts_charge_and_charge_rate_boundary_values(field, value):
+    request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | {field: value})
+    assert getattr(request, field) == value
 
 @pytest.mark.parametrize("bad_input",[
-    pytest.param({"charge_needed_kwh": -1}, id="charge_needed_kwh is negative"),
-    pytest.param({"charge_needed_kwh": 0}, id="charge_needed_kwh is 0"),
-    pytest.param({"charge_needed_kwh": 500}, id="charge_needed_kwh > 200"),
-    pytest.param({"charge_rate_kw": -1}, id="charge_rate_kw is negative"),
-    pytest.param({"charge_rate_kw": 0}, id="charge_rate_kw is 0"),
-    pytest.param({"charge_rate_kw": 500}, id="charge_rate_kw > 400"),
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH - 1}, id="charge_needed_kwh less than min"),
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH}, id="charge_needed_kwh at min"),
+    pytest.param({"charge_needed_kwh": MAX_CHARGE_KWH + 1e-6}, id="charge_needed_kwh above max"),
+    pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW - 1}, id="charge_rate_kw less than min"),
+    pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW}, id="charge_rate_kw at min"),
+    pytest.param({"charge_rate_kw": MAX_CHARGE_RATE_KW + 1e-6}, id="charge_rate_kw above max"),
     pytest.param({"mode": "slots"}, id="mode is incorrect string"),
     pytest.param({"mode": "Discrete"}, id="mode is capitalised"),
     pytest.param({"deadline": "2026-10-28T12:00"}, id="date with no timezone info")

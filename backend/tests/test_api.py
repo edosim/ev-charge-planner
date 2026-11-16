@@ -5,12 +5,15 @@ import pytest
 from helpers import make_slots, T0, FAR_FUTURE
 
 
-from datetime import datetime, time, timedelta, date, timezone
+from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi.testclient import TestClient
 
 from api import check_deadline, app, get_client, UK
-from main import Slot
+from constants import (
+    MAX_CHARGE_KWH, MIN_CHARGE_KWH,
+    MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
+)
 
 # ----- check_deadline: past and after 48h deadlines ----
 
@@ -180,15 +183,37 @@ def test_deadline_past_48h_raises_422(client):
     assert "48h" in response.json()["detail"]
 
 
-# --------- bad parameters ---------
+# --------- test min and max charge needed and charge rate -----
+@pytest.mark.parametrize("param",[
+    pytest.param({"charge_needed_kwh": MAX_CHARGE_KWH}, id="charge_needed_kwh at max"),
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH + 1e-6}, id="charge_needed_kwh just above minimum"),
+    pytest.param({"charge_rate_kw": MAX_CHARGE_RATE_KW}, id="charge_rate_kw at max"),
+    pytest.param({"charge_rate_kw": MIN_CHARGE_KWH + 1e-6}, id="charge_rate_kw just above min"),
+],)
+def test_accepts_charge_and_charge_rate_boundary_values(client, param):
+    fake_server()
+    response = client.get("/schedule",params=query_params(10, **param))
+    assert response.status_code == 200
+
 @pytest.mark.parametrize("bad_param",[
-    {'charge_needed_kwh': -10},    #only+ve allowed
-    {'charge_needed_kwh': 250},    #only <200 allowed
-    {'deadline_date': "27/10/26"},  #only YYYY-MM-DD allowed
-    {'deadline_time': '7'},        #only 07:00 allowed
-    {'charge_rate_kw': -7},        #only 0<x<400 allowed
-    {'charge_rate_kw': 407},       
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH - 1}, id="charge_needed_kwh less than min"),
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH}, id="charge_needed_kwh at min"),
+    pytest.param({"charge_needed_kwh": MAX_CHARGE_KWH + 1e-6}, id="charge_needed_kwh above max"),
+    pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW - 1}, id="charge_rate_kw less than min"),
+    pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW}, id="charge_rate_kw at min"),
+    pytest.param({"charge_rate_kw": MAX_CHARGE_RATE_KW + 1e-6}, id="charge_rate_kw above max"),
+],)
+def test_bad_charge_and_charge_rate_boundary_values_raises_422(client, bad_param):
+    fake_server()
+    response = client.get("/schedule",params=query_params(10,**bad_param))
+    assert response.status_code == 422
+
+
+
+# --------- bad mode ---------
+@pytest.mark.parametrize("bad_param",[
     {'mode':'fastest'},            #only 'discrete' and 'continuous'
+    {"mode": "Discrete"},           # capitalised
 ])
 def test_bad_params_raises_422(client, bad_param):
     fake_server()
@@ -196,7 +221,7 @@ def test_bad_params_raises_422(client, bad_param):
     assert response.status_code == 422
 
 
-#----------- Carbon Intesntiy API problems -------
+#----------- Carbon Intensity API problems -------
 
 def test_api_down_gives_503(client):
     fake_server(status=500, body={})

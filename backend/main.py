@@ -16,6 +16,10 @@ from typing import Self, Literal, assert_never
 import math #for ceil
 
 from helper_functions import get_smallest_window
+from constants import (
+    MAX_CHARGE_KWH, MIN_CHARGE_KWH,
+    MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
+)
 
 # Carbon Intensity API models
 
@@ -71,8 +75,8 @@ class ForecastResponse(BaseModel):
 class ChargeRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    charge_needed_kwh: float = Field(gt=0, le=200)
-    charge_rate_kw: float = Field(gt=0, le=400)
+    charge_needed_kwh: float = Field(gt=MIN_CHARGE_KWH, le=MAX_CHARGE_KWH)
+    charge_rate_kw: float = Field(gt=MIN_CHARGE_RATE_KW, le=MAX_CHARGE_RATE_KW)
     deadline: AwareDatetime
     mode: Literal["discrete", "continuous"] = "discrete"
 

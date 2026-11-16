@@ -2,6 +2,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, time, timedelta, date, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
+from constants import (
+    MAX_CHARGE_KWH, MIN_CHARGE_KWH,
+    MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
+    DEFAULT_CHARGE_RATE_KW
+)
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -60,10 +65,10 @@ def check_deadline(deadline: datetime, slots: list[Slot],
 
 @app.get("/schedule", response_model=ScheduleResponse)
 async def schedule(
-    charge_needed_kwh: float = Query(gt=0, le=200, description="Energy needed for car in kWh"),
+    charge_needed_kwh: float = Query(gt=MIN_CHARGE_KWH, le=MAX_CHARGE_KWH, description="Energy needed for car in kWh"),
     deadline_date: date = Query(description="Date when the car should finish charging, UK time, e.g. 2026-10-25"),
     deadline_time: time = Query(description="Time when the car should finish charging, UK time, e.g. 07:00"),
-    charge_rate_kw: float = Query(7, gt=0, le=400, description="Charge power in kW"),
+    charge_rate_kw: float = Query(DEFAULT_CHARGE_RATE_KW, gt=MIN_CHARGE_RATE_KW, le=MAX_CHARGE_RATE_KW, description="Charge power in kW"),
     mode: Literal["discrete","continuous"] = "discrete",
     client: httpx.AsyncClient = Depends(get_client),
 ) -> ScheduleResponse:

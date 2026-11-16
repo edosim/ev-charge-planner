@@ -84,6 +84,7 @@ function App() {
             type="number"
             min="0.5"
             step="0.5"
+            max="250"
             value={chargeNeeded}
             onChange={(e) => setChargeNeeded(e.target.value)}
             required
@@ -96,6 +97,7 @@ function App() {
             type="number"
             min="1"
             step="0.1"
+            max="400"
             value={chargeRate}
             onChange={(e) => setChargeRate(e.target.value)}
             required
@@ -106,6 +108,7 @@ function App() {
           Ready by (date)
           <input
             type="date"
+            max="9999-12-31"
             value={deadlineDate}
             onChange={(e) => setDeadlineDate(e.target.value)}
             required
