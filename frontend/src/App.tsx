@@ -3,6 +3,11 @@ import type { ScheduleResponse } from './types'
 import { formatUk } from './time'
 import ForecastChart from './ForecastChart'
 import { describePlan, groupSlots } from './plan'
+import {
+  MAX_CHARGE_KWH, MAX_CHARGE_RATE_KW,
+  MIN_CHARGE_KWH, MIN_CHARGE_RATE_KW,
+  STEP_CHARGE_KWH, STEP_CHARGE_RATE_KW,
+} from './limits'
 
 // create type for the two modes
 type Mode = 'discrete' | 'continuous'
@@ -82,9 +87,9 @@ function App() {
           Charge needed (kWh)
           <input
             type="number"
-            min="0.5"
-            step="0.5"
-            max="250"
+            min={MIN_CHARGE_KWH}
+            step={STEP_CHARGE_KWH}
+            max={MAX_CHARGE_KWH}
             value={chargeNeeded}
             onChange={(e) => setChargeNeeded(e.target.value)}
             required
@@ -95,9 +100,9 @@ function App() {
           Charger power (kW)
           <input
             type="number"
-            min="1"
-            step="0.1"
-            max="400"
+            min={MIN_CHARGE_RATE_KW}
+            step={STEP_CHARGE_RATE_KW}
+            max={MAX_CHARGE_RATE_KW}
             value={chargeRate}
             onChange={(e) => setChargeRate(e.target.value)}
             required
