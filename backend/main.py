@@ -58,6 +58,7 @@ class Slot(BaseModel):
         if self.intensity.forecast is None:
             raise ValueError(f"Slot starting {self.start} has no forecast")
         return self.intensity.forecast
+    
 class ForecastResponse(BaseModel):
     data: list[Slot]
 
