@@ -2,15 +2,12 @@
 
 
 import pytest
-from helpers import make_slots, T0, FAR_FUTURE
-
-
-from datetime import datetime, timedelta, timezone
+from helpers import make_slots, FAR_FUTURE
 
 
 from helper_functions import get_smallest_window
-from main import Slot, emissions_kg, plan_charge, ChargeRequest
-
+from planner import emissions_kg, plan_charge 
+from schemas import ChargeRequest
 
 
 

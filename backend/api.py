@@ -10,11 +10,12 @@ from constants import (
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 import json
 from collections.abc import AsyncGenerator
 
-from main import Slot, ChargeRequest, emissions_kg, fetch_forecast, plan_charge
+from schemas import Slot, ChargeRequest, ScheduleResponse
+from planner import emissions_kg, fetch_forecast, plan_charge
 
 import os
 from pathlib import Path
@@ -42,15 +43,6 @@ def get_now() -> datetime:
     """Get current time in UTC. A dependency so planner and endpoint share the same
     time and tests can pin the clock."""
     return datetime.now(timezone.utc)
-
-#  what the endpoint sends back 
-class ScheduleResponse(BaseModel):
-    slots: list[Slot]
-    forecast: list[Slot]
-    emissions_kg: float
-    charge_now_kg: float
-    saved_kg: float
-    fully_charged: bool
 
 
 def check_deadline(deadline: datetime, slots: list[Slot],

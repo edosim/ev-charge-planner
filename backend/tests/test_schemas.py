@@ -4,7 +4,7 @@ import pytest
 
 from pydantic import ValidationError
 from datetime import timezone
-from main import Intensity, Slot, ForecastResponse, ChargeRequest
+from schemas import Intensity, Slot, ForecastResponse, ChargeRequest
 from constants import (
     MAX_CHARGE_KWH, MIN_CHARGE_KWH,
     MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
