@@ -49,11 +49,14 @@ describe('describePlan', () => {
 
 
 describe('groupSlots', () => {
-  it("returns one slots if they are adjacent", () => {
+  it("returns one group if they are adjacent", () => {
     expect(groupSlots(makeSlots(4)).length).toBe(1)
   })
-  it("returns more than one slot if not adjacent", () => {
-    expect(groupSlots([...makeSlots(4), ...(makeSlots(4, "31"))]).length).toBe(2)
+  it("returns each group's start and end", () => {
+    const groups = groupSlots([...makeSlots(4), ...(makeSlots(4, "31"))]);
+    expect(groups.map((g) => [g.from, g.to])).toEqual(
+      [["2026-10-30T00:00:00Z","2026-10-30T02:00:00Z"],
+       ["2026-10-31T00:00:00Z","2026-10-31T02:00:00Z"]])
   })
 })
 

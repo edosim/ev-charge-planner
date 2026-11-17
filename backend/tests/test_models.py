@@ -88,13 +88,13 @@ DATA = [
     {"from": "2026-10-27T14:00Z", "to": "2026-10-27T14:30Z", "intensity": INTENSITY}, 
 ]
 
-def forecast_response_accepts_api_format():
-    data = ForecastResponse.model_validate(DATA[:3]).data
+def test_forecast_response_accepts_api_format():
+    data = ForecastResponse.model_validate({"data":DATA[:3]}).data
     assert len(data) == 3
 
-def forecast_response_rejects_gap():
+def test_forecast_response_rejects_gap():
     with pytest.raises(ValidationError):
-        ForecastResponse.model_validate(DATA)
+        ForecastResponse.model_validate({"data":DATA})
 
 
 # ----- test validation of ChargeRequest --------

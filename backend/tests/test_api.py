@@ -5,17 +5,37 @@ import pytest
 from helpers import make_slots, T0, FAR_FUTURE
 
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date, time, timedelta, timezone
 import httpx
 from fastapi.testclient import TestClient
 
-from api import check_deadline, app, get_client, UK
+from api import (
+    check_deadline,
+    uk_deadline,
+    app,
+    get_client,
+    get_now,
+    UK
+)
+                 
 from constants import (
     MAX_CHARGE_KWH, MIN_CHARGE_KWH,
     MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
+    UK,
 )
 
 # ----- check_deadline: past and after 48h deadlines ----
+@pytest.mark.parametrize("date_deadline, expected",[
+    pytest.param(date(2026, 6, 21),
+                 datetime(2026, 6, 21, 11, 0, tzinfo=timezone.utc),
+                 id="summer"),
+    pytest.param(date(2025, 12, 21),
+                 datetime(2025, 12, 21, 12, 0, tzinfo=timezone.utc),
+                 id="winter"),
+],)
+def test_check_deadline_handles_clock_changes(date_deadline, expected):
+    time_deadline = time(12,0)
+    assert uk_deadline(date_deadline, time_deadline) == expected
 
 def test_deadline_in_range_is_accepted():
     slots = (make_slots([50,]*30))
@@ -49,16 +69,10 @@ def test_deadline_equal_last_slot_is_accepted():
 # ---------------- test api ---
 # helper functions
 
-def start_of_first_slot() -> datetime:
-    """Get time of first slot as a datetime object"""
-    now = datetime.now(timezone.utc)
-    minutes_to_subtract = now.minute % 30
-    first_slot_time =  now - timedelta(minutes=minutes_to_subtract)
-    return first_slot_time.replace(second=0, microsecond=0)
 
 def forecast_json(forecasts: list[int]):
     """Create the json Carbon Intensity API would return"""
-    slots = make_slots(forecasts, start=start_of_first_slot())
+    slots = make_slots(forecasts, start=T0)
     return {"data": [s.model_dump(mode='json', by_alias=True) for s in slots]}
 
 
@@ -73,10 +87,12 @@ def fake_server(forecasts=None, status=200, body=None):
 
     fake = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     app.dependency_overrides[get_client] = lambda: fake
+    app.dependency_overrides[get_now] = lambda: T0
 
 
 @pytest.fixture
 def client():
+    # send HTTP requests to app without starting a server
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -85,7 +101,7 @@ def query_params(hours_from_now: float,
                  **extra) -> dict:
     """Query parameters with deadline N hours from now, UK time.
     The extra params are charge_rate_kw=7 and mode='discrete'."""
-    d = datetime.now(UK) + timedelta(hours=hours_from_now)
+    d = T0 + timedelta(hours=hours_from_now)
     return {
         "charge_needed_kwh": charge_needed_kwh,
         "deadline_date": d.date().isoformat(),
@@ -188,7 +204,7 @@ def test_deadline_past_48h_raises_422(client):
     pytest.param({"charge_needed_kwh": MAX_CHARGE_KWH}, id="charge_needed_kwh at max"),
     pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH + 1e-6}, id="charge_needed_kwh just above minimum"),
     pytest.param({"charge_rate_kw": MAX_CHARGE_RATE_KW}, id="charge_rate_kw at max"),
-    pytest.param({"charge_rate_kw": MIN_CHARGE_KWH + 1e-6}, id="charge_rate_kw just above min"),
+    pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW + 1e-6}, id="charge_rate_kw just above min"),
 ],)
 def test_accepts_charge_and_charge_rate_boundary_values(client, param):
     fake_server()

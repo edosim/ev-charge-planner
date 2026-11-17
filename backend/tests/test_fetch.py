@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from main import fetch_forecast
+from helpers import T0
                   
 
 TEST_RESPONSE = {
@@ -26,12 +27,12 @@ TEST_RESPONSE = {
     ]
 }
 
-def fetch_with(handler):
+def fetch_with(handler, now=None):
     """Run fetch with a fake server"""
     async def run():
         transport = httpx.MockTransport(handler)
         async with httpx.AsyncClient(transport=transport) as client:
-            return await fetch_forecast(client)
+            return await fetch_forecast(client, now)
     return asyncio.run(run())
 
 
@@ -45,19 +46,18 @@ def test_parses_response_and_excludes_all_after_missing_forecasts():
     assert slots[0].end == datetime(2026, 10, 27, 12, 30, tzinfo=timezone.utc)
     assert slots[1].intensity.index == "low"
 
-def test_calls_the_48h_forecast_endpoint():
+def test_calls_the_48h_forecast_endpoint_and_uses_given_time():
     seen = []
 
     def handler(request):
         seen.append(request)
         return httpx.Response(200, json={"data": []})
 
-    fetch_with(handler)
+    fetch_with(handler, now=T0)
 
     assert len(seen) == 1
-    path = seen[0].url.path
-    assert path.startswith("/intensity/")
-    assert path.endswith("/fw48h")
+    assert seen[0].url.path == f'/intensity/{T0.strftime("%Y-%m-%dT%H:%MZ")}/fw48h'
+    assert seen[0].url.host == "api.carbonintensity.org.uk"
 
 def test_server_error_raises():
     with pytest.raises(httpx.HTTPStatusError):
