@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, time, timedelta, date, timezone
 from typing import Literal
-from zoneinfo import ZoneInfo
 from constants import (
     MAX_CHARGE_KWH, MIN_CHARGE_KWH,
     MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
-    DEFAULT_CHARGE_RATE_KW
+    DEFAULT_CHARGE_RATE_KW,
+    UK,
 )
 
 import httpx
@@ -21,7 +21,6 @@ from pathlib import Path
 
 from fastapi.staticfiles import StaticFiles
 
-UK = ZoneInfo("Europe/London")
 
 
 
@@ -66,8 +65,11 @@ def check_deadline(deadline: datetime, slots: list[Slot],
         raise ValueError("Deadline must be within the next 48h "
                          f"(before {slots[-1].end.astimezone(UK):%a %H:%M}).")
 
+def uk_deadline(date_deadline: date, time_deadline: time) -> datetime:
+    """Combines UK date and time into UTC deadline"""
+    return datetime.combine(date_deadline, time_deadline, tzinfo=UK)
+    
 # the endpoint
-
 @app.get("/schedule", response_model=ScheduleResponse)
 async def schedule(
     charge_needed_kwh: float = Query(gt=MIN_CHARGE_KWH, le=MAX_CHARGE_KWH, description="Energy needed for car in kWh"),
@@ -87,7 +89,7 @@ async def schedule(
     if not slots:
         raise HTTPException(status_code=503, detail="No forecast data available")         
                        
-    deadline = datetime.combine(deadline_date, deadline_time, tzinfo=UK)
+    deadline = uk_deadline(deadline_date, deadline_time)
     request = ChargeRequest(
          charge_needed_kwh = charge_needed_kwh,
          charge_rate_kw = charge_rate_kw,

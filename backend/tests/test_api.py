@@ -5,17 +5,37 @@ import pytest
 from helpers import make_slots, T0, FAR_FUTURE
 
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date, time, timedelta, timezone
 import httpx
 from fastapi.testclient import TestClient
 
-from api import check_deadline, app, get_client, get_now, UK
+from api import (
+    check_deadline,
+    uk_deadline,
+    app,
+    get_client,
+    get_now,
+    UK
+)
+                 
 from constants import (
     MAX_CHARGE_KWH, MIN_CHARGE_KWH,
     MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
+    UK,
 )
 
 # ----- check_deadline: past and after 48h deadlines ----
+@pytest.mark.parametrize("date_deadline, expected",[
+    pytest.param(date(2026, 6, 21),
+                 datetime(2026, 6, 21, 11, 0, tzinfo=timezone.utc),
+                 id="summer"),
+    pytest.param(date(2025, 12, 21),
+                 datetime(2025, 12, 21, 12, 0, tzinfo=timezone.utc),
+                 id="winter"),
+],)
+def test_check_deadline_handles_clock_changes(date_deadline, expected):
+    time_deadline = time(12,0)
+    assert uk_deadline(date_deadline, time_deadline) == expected
 
 def test_deadline_in_range_is_accepted():
     slots = (make_slots([50,]*30))
