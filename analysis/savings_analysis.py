@@ -1,6 +1,5 @@
 import httpx
 from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
 
 import sys
 from pathlib import Path
@@ -49,22 +48,25 @@ def split_dates_by_num_days(start_date: datetime, end_date: datetime, num_days: 
     return dates_to_fetch
 
 def all_present(values: list[int | None]) -> list[int] | None:
-    """Check that no None is presen in forecasts or actuals to be used in the savings"""
+    """Returns None for empty lists or if the list contains None. Otherwise, the list."""
     present = [v for v in values if v is not None]
-    return present if len(present) == len(values) else None
+    if len(present) == len(values) and len(values) > 0:
+        return present
+    else:
+        return None
 
 def main(start: str, end: str) -> None:
 
     #turn into datetime objects
     start_date = datetime.strptime(start, "%Y-%m-%d")
-    end_date = datetime.strptime(start, "%Y-%m-%d")
+    end_date = datetime.strptime(end, "%Y-%m-%d")
 
     dates_to_fetch = split_dates_by_num_days(start_date, end_date, 14)
 
     # Fetch slots
     slots = []
-    for start, end in dates_to_fetch:
-        slots += fetch_forecast(start, end)
+    for chunk_start, chunk_end in dates_to_fetch:
+        slots += fetch_forecast(chunk_start, chunk_end)
 
     total_days = (end_date - start_date).total_seconds() / 86400
     print(f"Carbon saved between {start_date.strftime('%d/%m/%Y')} and {end_date.strftime('%d/%m/%Y')} "
@@ -82,7 +84,8 @@ def main(start: str, end: str) -> None:
             # this adds 12 hours naively, i.e. always at 7am the next day even on clock
             # change days (which is what we want)
             deadline = date_uk + timedelta(hours=12)
-            
+
+            # this could add 47 or 49 hours but it doesn't matter because use the first 12
             slots_of_date = [s for s in slots if s.start >= date_uk and s.end <= date_uk + timedelta(hours=48)]
      
             request_input = {
@@ -119,14 +122,23 @@ def main(start: str, end: str) -> None:
         actual_savings: float = sum([n - i for (n, i) in zip(charge_nows, actuals)])
         actual_savings *= CHARGE_RATE / 2 / 1000
 
+        # Remove skipped days
+        days_counted = total_days - len(dates_skipped)
+        if days_counted == 0:
+            print(f"{mode.capitalize()} mode: every night was skipped")
+            continue
+
         print()
         print(f"---- {mode.capitalize()} mode ----")
-        print(f"Predicted emissions: {forecasts_total:.3f} kg ({forecasts_total/total_days:.3f} kg/day)")
-        print(f"Actual emissions: {actuals_total:.3f} kg ({actuals_total/total_days:.3f} kg/day)")
-        print(f"'Charge now' emissions: {charge_nows_total:.3f} kg ({charge_nows_total/total_days:.3f} kg/day)")
+        if dates_skipped:
+            skipped = ", ".join(d.strftime("%d/%m/%Y") for d in dates_skipped)
+            print(f"Nights starting on {skipped} were skipped because they contained null values.")
+        print(f"Predicted emissions: {forecasts_total:.3f} kg ({forecasts_total/days_counted:.3f} kg/day)")
+        print(f"Actual emissions: {actuals_total:.3f} kg ({actuals_total/days_counted:.3f} kg/day)")
+        print(f"'Charge now' emissions: {charge_nows_total:.3f} kg ({charge_nows_total/days_counted:.3f} kg/day)")
         print()
-        print(f"Predicted savings: {predicted_savings:.3f} kg ({predicted_savings/total_days:.3f} kg/day)")
-        print(f"Actual savings: {actual_savings:.3f} kg ({actual_savings/total_days:.3f} kg/day)")
+        print(f"Predicted savings: {predicted_savings:.3f} kg ({predicted_savings/days_counted:.3f} kg/day)")
+        print(f"Actual savings: {actual_savings:.3f} kg ({actual_savings/days_counted:.3f} kg/day)")
 
 if __name__ == "__main__":
     main(START_DATE, END_DATE)
