@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi.testclient import TestClient
 
-from api import check_deadline, app, get_client, UK
+from api import check_deadline, app, get_client, get_now, UK
 from constants import (
     MAX_CHARGE_KWH, MIN_CHARGE_KWH,
     MAX_CHARGE_RATE_KW, MIN_CHARGE_RATE_KW,
@@ -49,16 +49,10 @@ def test_deadline_equal_last_slot_is_accepted():
 # ---------------- test api ---
 # helper functions
 
-def start_of_first_slot() -> datetime:
-    """Get time of first slot as a datetime object"""
-    now = datetime.now(timezone.utc)
-    minutes_to_subtract = now.minute % 30
-    first_slot_time =  now - timedelta(minutes=minutes_to_subtract)
-    return first_slot_time.replace(second=0, microsecond=0)
 
 def forecast_json(forecasts: list[int]):
     """Create the json Carbon Intensity API would return"""
-    slots = make_slots(forecasts, start=start_of_first_slot())
+    slots = make_slots(forecasts, start=T0)
     return {"data": [s.model_dump(mode='json', by_alias=True) for s in slots]}
 
 
@@ -73,6 +67,7 @@ def fake_server(forecasts=None, status=200, body=None):
 
     fake = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     app.dependency_overrides[get_client] = lambda: fake
+    app.dependency_overrides[get_now] = lambda: T0
 
 
 @pytest.fixture
@@ -85,7 +80,7 @@ def query_params(hours_from_now: float,
                  **extra) -> dict:
     """Query parameters with deadline N hours from now, UK time.
     The extra params are charge_rate_kw=7 and mode='discrete'."""
-    d = datetime.now(UK) + timedelta(hours=hours_from_now)
+    d = T0 + timedelta(hours=hours_from_now)
     return {
         "charge_needed_kwh": charge_needed_kwh,
         "deadline_date": d.date().isoformat(),
