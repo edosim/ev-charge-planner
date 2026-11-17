@@ -92,6 +92,7 @@ def fake_server(forecasts=None, status=200, body=None):
 
 @pytest.fixture
 def client():
+    # send HTTP requests to app without starting a server
     yield TestClient(app)
     app.dependency_overrides.clear()
 

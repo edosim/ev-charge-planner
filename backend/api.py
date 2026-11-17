@@ -126,6 +126,10 @@ STATIC_DIR = Path(os.environ.get(
     Path(__file__).resolve().parent.parent / "frontend" / "dist",
 ))
 
-if STATIC_DIR.is_dir():
+def mount_app(app: FastAPI, static_dir: Path) -> None:
+
+    if static_dir.is_dir():
     # attach subapplication at a path
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")
+
+mount_app(app, STATIC_DIR)
