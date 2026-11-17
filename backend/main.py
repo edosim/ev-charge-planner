@@ -98,12 +98,15 @@ class ChargeRequest(BaseModel):
 BASE_URL = "https://api.carbonintensity.org.uk"
 
 
-async def fetch_forecast(client: httpx.AsyncClient) -> list[Slot]:
+async def fetch_forecast(client: httpx.AsyncClient,
+                         now: datetime | None = None) -> list[Slot]:
     """Fetch data from Carbon intensity API. Return slots up to the where
     `slot.intensity.forecast is None`."""
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    if now is None:
+        now = datetime.now(timezone.utc)
+    timestamp = now.strftime("%Y-%m-%dT%H:%MZ")
 
-    resp = await client.get(f"{BASE_URL}/intensity/{now}/fw48h", timeout=10)
+    resp = await client.get(f"{BASE_URL}/intensity/{timestamp}/fw48h", timeout=10)
     resp.raise_for_status()
     slots = ForecastResponse.model_validate(resp.json()).data
 

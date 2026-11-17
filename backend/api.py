@@ -39,6 +39,11 @@ def get_client(request: Request) -> httpx.AsyncClient:
       client: httpx.AsyncClient = request.app.state.client
       return client
 
+def get_now() -> datetime:
+    """Get current time in UTC. A dependency so planner and endpoint share the same
+    time and tests can pin the clock."""
+    return datetime.now(timezone.utc)
+
 #  what the endpoint sends back 
 class ScheduleResponse(BaseModel):
     slots: list[Slot]
@@ -71,10 +76,11 @@ async def schedule(
     charge_rate_kw: float = Query(DEFAULT_CHARGE_RATE_KW, gt=MIN_CHARGE_RATE_KW, le=MAX_CHARGE_RATE_KW, description="Charge power in kW"),
     mode: Literal["discrete","continuous"] = "discrete",
     client: httpx.AsyncClient = Depends(get_client),
+    now: datetime = Depends(get_now),
 ) -> ScheduleResponse:
     
     try:
-        slots = await fetch_forecast(client)
+        slots = await fetch_forecast(client, now)
     except (httpx.HTTPError, ValidationError, json.JSONDecodeError):
         raise HTTPException(status_code=503, detail="Carbon Intensity API is unavailable")
 
@@ -90,7 +96,7 @@ async def schedule(
     )
 
     try:
-        check_deadline(request.deadline, slots)
+        check_deadline(request.deadline, slots, now)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
