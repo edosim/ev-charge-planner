@@ -110,7 +110,7 @@ function App() {
         </label>
 
         <label>
-          Ready by (date)
+          Ready by (UK date)
           <input
             type="date"
             max="9999-12-31"
@@ -121,7 +121,7 @@ function App() {
         </label>
 
         <label>
-          Ready by (time)
+          Ready by (UK time)
           <input
             type="time"
             value={deadlineTime}
@@ -170,6 +170,8 @@ function App() {
           {!result.fully_charged && (
             <p className="warning" role="status">
               There isn't enough time to charge the full {plannedCharge} kWh before your deadline.
+              <br />
+              Only charging {result.charge_delivered_kwh} kWh.
             </p>
           )}
             <ForecastChart forecast={result.forecast} chosen={result.slots} />

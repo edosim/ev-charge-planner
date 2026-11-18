@@ -198,7 +198,7 @@ button:focus-visible {
 .slot-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0;
+  gap: 6px;
   margin: 16px 0 0;
   padding: 0;
   list-style: none;

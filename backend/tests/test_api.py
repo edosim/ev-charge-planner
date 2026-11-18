@@ -10,7 +10,8 @@ import httpx
 from fastapi.testclient import TestClient
 
 from api import (
-    check_deadline,
+    deadline_in_the_future,
+    deadline_in_forecast,
     uk_deadline,
     app,
     get_client,
@@ -24,7 +25,7 @@ from constants import (
     UK,
 )
 
-# ----- check_deadline: past and after 48h deadlines ----
+# ---- uk_deadline ------
 @pytest.mark.parametrize("date_deadline, expected",[
     pytest.param(date(2026, 6, 21),
                  datetime(2026, 6, 21, 11, 0, tzinfo=timezone.utc),
@@ -37,34 +38,37 @@ def test_check_deadline_handles_clock_changes(date_deadline, expected):
     time_deadline = time(12,0)
     assert uk_deadline(date_deadline, time_deadline) == expected
 
+# ----- check deadline: after 48h -------------
+
 def test_deadline_in_range_is_accepted():
     slots = (make_slots([50,]*30))
     deadline = slots[1].end
-    check_deadline(deadline, slots, now=T0)
-
-
-def test_deadline_in_the_past_raises_error():
-    slots = (make_slots([50,]*30))
-    deadline = T0 - timedelta(hours=1)
-    with pytest.raises(ValueError, match="future"):
-        check_deadline(deadline, slots, now=T0)
-
-def test_deadline_now_raises_error():
-    slots = (make_slots([50,]*30))
-    with pytest.raises(ValueError, match="future"):
-        check_deadline(T0, slots, now=T0)
-
+    deadline_in_forecast(deadline, slots)
 
 def test_deadline_after_last_slot_raises_error():
     slots = (make_slots([50,]*30))
     deadline = FAR_FUTURE
     with pytest.raises(ValueError, match="48h"):
-        check_deadline(deadline, slots, now=T0)
+        deadline_in_forecast(deadline, slots)
 
 def test_deadline_equal_last_slot_is_accepted():
     slots = (make_slots([50,]*30))
     deadline = slots[-1].end
-    check_deadline(deadline, slots, now=T0)
+    deadline_in_forecast(deadline, slots)
+
+# ----- check deadline: in the past -------------
+def test_deadline_in_the_past_raises_error():
+    slots = (make_slots([50,]*30))
+    deadline = T0 - timedelta(hours=1)
+    with pytest.raises(ValueError, match="future"):
+        deadline_in_the_future(deadline, now=T0)
+
+def test_deadline_now_raises_error():
+    slots = (make_slots([50,]*30))
+    with pytest.raises(ValueError, match="future"):
+        deadline_in_the_future(T0, now=T0)
+
+
 
 # ---------------- test api ---
 # helper functions
@@ -174,6 +178,13 @@ def test_saved_emissions_have_3_dp(client):
 
     assert response.json()['saved_kg'] == 0.004
 
+def test_delivered_charg_kwh_has_2_dp(client):
+    fake_server(forecasts=[50, 50] + [200]*94)
+    response = client.get("/schedule",params=query_params(10, charge_needed_kwh=3.66666, charge_rate_kw=7))
+
+    assert response.json()['charge_delivered_kwh'] == 3.67
+
+
 @pytest.mark.parametrize("hours_from_now, expected_fully_charged",[
     (1, False),      #1 hour is not enough for 30 kWh at 7kW 
     (10, True),     #10 hours are enough for 30 kWh at 7kW 
@@ -184,7 +195,7 @@ def test_fully_charged_is_correct(client, hours_from_now, expected_fully_charged
     assert response.json()['fully_charged'] == expected_fully_charged
 
 
-# --------- deadline errors (check_deadline through API)----------
+# --------- deadline errors (check deadline through API)----------
 
 def test_deadline_in_past_raises_422(client):
     fake_server()
@@ -263,8 +274,51 @@ def fake_server_text(status=200, body = "data"):
 
     fake = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     app.dependency_overrides[get_client] = lambda: fake
+    app.dependency_overrides[get_now] = lambda: T0
 
 
 def test_api_not_json_gives_503(client):
     fake_server_text(status=200)
     assert client.get("/schedule", params=query_params(10)).status_code == 503
+
+# ---- test handling of in progress slots ----
+def test_in_progress_slot_is_not_chosen(client):
+    # The current slot is the greenest
+    fake_server(forecasts=[1] + [100] * 95)
+    app.dependency_overrides[get_now] = lambda: T0 + timedelta(minutes=10)
+
+    response = client.get("/schedule", params=query_params(10, charge_needed_kwh=3.5))
+
+    assert response.status_code == 200
+    forecasts = [s["intensity"]["forecast"] for s in response.json()["slots"]]
+    assert 1 not in forecasts
+
+def test_slot_starting_exactly_now_is_kept(client):
+    fake_server(forecasts=[1] + [100] * 95)
+
+    response = client.get("/schedule", params=query_params(10, charge_needed_kwh=3.5))
+
+    assert response.status_code == 200
+    forecasts = [s["intensity"]["forecast"] for s in response.json()["slots"]]
+    assert 1 in forecasts
+
+
+def test_deadline_in_current_half_hour_is_too_soon(client):
+    fake_server()
+
+    response = client.get("/schedule", params=query_params(0.2, charge_needed_kwh=3.5))
+
+    assert response.status_code == 422
+    assert "too soon" in response.json()["detail"]
+
+def test_deadline_at_end_of_next_slot_is_accepted(client):
+    fake_server(forecasts=[10, 20] + [100] * 94)
+    # now at 12:10
+    app.dependency_overrides[get_now] = lambda: T0 + timedelta(minutes=15)
+
+    # deadline at 13:00
+    response = client.get("/schedule", params=query_params(1, charge_needed_kwh=3.5))
+
+    assert response.status_code == 200
+    forecasts = [s["intensity"]["forecast"] for s in response.json()["slots"]]
+    assert 20 in forecasts
