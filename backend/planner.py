@@ -95,7 +95,7 @@ async def main() -> None:
     plan, charge_delivered_kwh, fully_charged = plan_charge(slots, request)
 
     if not fully_charged:
-        print(f"There is not enough time for a full charge. Your vehicle will get {charge_delivered_kwhge_final} kWh.")
+        print(f"There is not enough time for a full charge. Your vehicle will get {charge_delivered_kwh} kWh.")
 
     print("Your vehicle will charge at the following times.")
     for s in plan:
