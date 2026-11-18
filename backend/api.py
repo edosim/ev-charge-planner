@@ -61,7 +61,7 @@ def deadline_in_forecast(deadline: datetime, slots: list[Slot],
 def uk_deadline(date_deadline: date, time_deadline: time) -> datetime:
     """Combines UK date and time into UTC deadline"""
     return datetime.combine(date_deadline, time_deadline, tzinfo=UK)
-    
+
 # the endpoint
 @app.get("/schedule", response_model=ScheduleResponse)
 async def schedule(
@@ -94,12 +94,25 @@ async def schedule(
 
     if not slots:
         raise HTTPException(status_code=503, detail="No forecast data available")         
-
+    if request.deadline < slots[0].end:
+        earliest = slots[0].end.astimezone(UK)
+        raise HTTPException(422, f"Deadline is too soon. The earliest a charge can finish is {earliest:%H:%M}.")
 
     try:
         deadline_in_forecast(request.deadline, slots, now)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+    # Remove all slots before the next one starts (including the current one)
+    slots = [s for s in slots if s.start>=now]
+
+
+    if not slots:
+        raise HTTPException(503, "No forecast data available")
+    if request.deadline < slots[0].end:
+        earliest = slots[0].end.astimezone(UK)
+        raise HTTPException(422, f"Deadline is too soon. The earliest a charge can finish is {earliest:%H:%M}.")
+
 
     #Get best slots
     plan, charge_delivered_kwh, fully_charged = plan_charge(slots, request)
