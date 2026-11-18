@@ -97,8 +97,8 @@ async def schedule(
     #Get best slots
     plan, fully_charged = plan_charge(slots, request)
     #Get emissions
-    smart_kg = emissions_kg(plan, request.charge_rate_kw)
-    now_kg = emissions_kg(slots[:len(plan)], request.charge_rate_kw)
+    smart_kg = emissions_kg(plan, request)
+    now_kg = emissions_kg(slots[:len(plan)], request)
     saved_kg = now_kg - smart_kg
 
     return ScheduleResponse(slots=plan,

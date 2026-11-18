@@ -27,13 +27,33 @@ def test_smallest_window_finds_lowest_sum(nums, n, expected_idx):
 
 
 # -------- emissions_kg --------------
-def test_emissions_kg():
-    # 50 and 100 gCO2/kWh; charge rate 7 kW: 3.5 kWh per 30 min
-    # (50+100) * 0.5 * 7 *1e-3 = 150 * 3.5 * 1e-3 = 0.525 kg
-    assert emissions_kg(make_slots([50,100]), 7) == pytest.approx(0.525)
+def test_emissions_kg_partial_last_slot():
+    request = ChargeRequest(charge_needed_kwh=4,
+                            charge_rate_kw=7,
+                            deadline=FAR_FUTURE,
+                            mode="discrete")
+    # 50 and 100 gCO2/kWh; first fully counted, second only partially
+    # first slot: 50 * 3.5 = 175 gCO2
+    # second slot: 100 * 0.5 = 50 gCO2
+    # total: 225 g = 0.225 g
+    assert emissions_kg(make_slots([50,100]), request) == pytest.approx(0.225)
+
+def test_emissions_kg_whole_last_slot():
+    request = ChargeRequest(charge_needed_kwh=7,
+                            charge_rate_kw=7,
+                            deadline=FAR_FUTURE,
+                            mode="discrete")
+    # 50 and 100 gCO2/kWh; both fully counted
+    # (50+100) * 3.5 = 525 gCO2 = 0.525 kgCO2
+    assert emissions_kg(make_slots([50,100]), request) == pytest.approx(0.525)
 
 def test_emissions_kg_of_empty_plan_is_zero():
-    assert emissions_kg([], 7) == 0
+    request = ChargeRequest(charge_needed_kwh=4,
+                            charge_rate_kw=7,
+                            deadline=FAR_FUTURE,
+                            mode="discrete")
+    assert emissions_kg([], request) == 0
+
 
 
 # --------- plan_charge: number of slots -----------
@@ -90,7 +110,7 @@ def test_discreet_never_worse_than_continuous():
         continuous, _ = plan_charge(slots, request_continuous)
         discrete, _ = plan_charge(slots, request_discrete)
 
-        assert emissions_kg(discrete, 7) <= emissions_kg(continuous, 7)
+        assert emissions_kg(discrete, request_discrete) <= emissions_kg(continuous, request_continuous)
 
 # --------plan_charge: deadline ------
 

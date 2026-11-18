@@ -59,9 +59,16 @@ def plan_charge(slots: list[Slot], request: ChargeRequest) -> tuple[list[Slot], 
             case _:
                 assert_never(request.mode)
 
-def emissions_kg(slots: list[Slot], charge_rate_kw: float) -> float:
-    grams_per_energy = sum([s.forecast for s in slots])
-    grams = charge_rate_kw * 0.5 * grams_per_energy
+def emissions_kg(slots: list[Slot], request: ChargeRequest) -> float:
+    """CO2 emissions in kg for charging in `slots`, in order, until
+    `charge_needed_kwh` is delivered. The last slot may be partial."""
+    energy_per_slot = request.charge_rate_kw * 0.5
+    remaining = request.charge_needed_kwh
+    grams = 0.0
+    for slot in slots:
+        energy = min(energy_per_slot, remaining)
+        grams += energy * slot.forecast
+        remaining -= energy
     return grams * 1e-3
 
 async def main() -> None:
@@ -92,13 +99,13 @@ async def main() -> None:
         print(f"{s.start.strftime('%a %H:%M')} UTC")
 
     #Emissions saved
-    dumb = emissions_kg(slots[:len(plan)], request.charge_rate_kw)
-    smart = emissions_kg(plan, request.charge_rate_kw)
+    dumb = emissions_kg(slots[:len(plan)], request)
+    smart = emissions_kg(plan, request)
     print(f"You will save {dumb-smart:.2f} kg of CO2 vs. charging now.")
     if request.mode == "continuous":
         request_discrete = ChargeRequest.model_validate(request_input | {"mode": "discrete"})
         plan_discrete, _ = plan_charge(slots, request_discrete)
-        smart_discrete = emissions_kg(plan_discrete, request.charge_rate_kw)
+        smart_discrete = emissions_kg(plan_discrete, request)
         print(f"Choose discrete mode and save an extra {smart - smart_discrete:.2f} kg of CO2.")
 
 
