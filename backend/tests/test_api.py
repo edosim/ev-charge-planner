@@ -160,7 +160,7 @@ def test_emissions_are_correct(client):
 
 def test_emissions_have_3_dp(client):
     fake_server(forecasts=[50, 50] + [200]*94)
-    response = client.get("/schedule",params=query_params(10, charge_needed_kwh=6, charge_rate_kw=20/3))
+    response = client.get("/schedule",params=query_params(10, charge_needed_kwh=20/3, charge_rate_kw=20/3))
     # emissions (50+50) * 0.5 * 20/3 * 1e-3 = 50 * 20/3 * 1e-3 = 0.333(3333)
     assert response.json()['emissions_kg'] == 0.333
     assert response.json()['charge_now_kg'] == 0.333

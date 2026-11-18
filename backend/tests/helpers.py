@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
-from main import Slot
+from schemas import Slot
 
 T0 = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc)
 FAR_FUTURE = T0 + timedelta(days=4)

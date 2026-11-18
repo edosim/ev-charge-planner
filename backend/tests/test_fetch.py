@@ -10,7 +10,7 @@ import httpx
 from datetime import datetime, timezone
 from pydantic import ValidationError
 
-from main import fetch_forecast
+from planner import fetch_forecast
 from helpers import T0
                   
 

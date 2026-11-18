@@ -4,8 +4,9 @@ from datetime import datetime, timezone, timedelta
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-from main import ForecastResponse, plan_charge, ChargeRequest, BASE_URL, Slot
+from planner import plan_charge, BASE_URL
 from constants import UK
+from schemas import ForecastResponse, ChargeRequest, Slot
 
 CHARGE_NEEDED = 28 #kWh
 CHARGE_RATE = 7 #kW
