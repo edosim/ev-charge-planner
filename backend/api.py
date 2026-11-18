@@ -45,14 +45,13 @@ def get_now() -> datetime:
     return datetime.now(timezone.utc)
 
 def deadline_in_the_future(deadline:datetime, now: datetime | None = None) -> None:
-    "Check that the deadline is in the future, before calling carbon instensity API."
+    """Check that the deadline is in the future, before calling carbon instensity API."""
     if now is None:
         now = datetime.now(timezone.utc)
     if deadline <= now:
         raise ValueError("Deadline must be in the future.")
 
-def deadline_in_forecast(deadline: datetime, slots: list[Slot],
-                   now: datetime | None = None) -> None:
+def deadline_in_forecast(deadline: datetime, slots: list[Slot]) -> None:
     """Check that the deadline is in the data from the Carbon Intensity API."""
     if deadline > slots[-1].end:
         raise ValueError("Deadline must be within the next 48h "
@@ -92,29 +91,22 @@ async def schedule(
     except (httpx.HTTPError, ValidationError, json.JSONDecodeError):
         raise HTTPException(status_code=503, detail="Carbon Intensity API is unavailable")
 
+    # Keep only slots starting now or later, so the half-hour in progress is excluded
+    slots = [s for s in slots if s.start >= now]
+
     if not slots:
-        raise HTTPException(status_code=503, detail="No forecast data available")         
+        raise HTTPException(status_code=503, detail="No forecast data available")
+    # If the deadline does not finish after the end of the first allowed slot, a plan cannot be made.
     if request.deadline < slots[0].end:
         earliest = slots[0].end.astimezone(UK)
-        raise HTTPException(422, f"Deadline is too soon. The earliest a charge can finish is {earliest:%H:%M}.")
+        raise HTTPException(422, f"Deadline is too soon. The earliest a charge can finish is {earliest:%H:%M} UK time.")
 
     try:
-        deadline_in_forecast(request.deadline, slots, now)
+        deadline_in_forecast(request.deadline, slots)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    # Remove all slots before the next one starts (including the current one)
-    slots = [s for s in slots if s.start>=now]
 
-
-    if not slots:
-        raise HTTPException(503, "No forecast data available")
-    if request.deadline < slots[0].end:
-        earliest = slots[0].end.astimezone(UK)
-        raise HTTPException(422, f"Deadline is too soon. The earliest a charge can finish is {earliest:%H:%M}.")
-
-
-    #Get best slots
     plan, charge_delivered_kwh, fully_charged = plan_charge(slots, request)
     #Get emissions
     smart_kg = emissions_kg(plan, request)
@@ -126,7 +118,7 @@ async def schedule(
                             emissions_kg=round(smart_kg,3),
                             charge_now_kg=round(now_kg,3),
                             saved_kg=round(saved_kg, 3), #same precision as two above
-                            charge_delivered_kwh=charge_delivered_kwh, 
+                            charge_delivered_kwh=round(charge_delivered_kwh, 2), 
                             fully_charged=fully_charged
     )
 

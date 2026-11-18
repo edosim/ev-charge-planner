@@ -43,18 +43,18 @@ def test_check_deadline_handles_clock_changes(date_deadline, expected):
 def test_deadline_in_range_is_accepted():
     slots = (make_slots([50,]*30))
     deadline = slots[1].end
-    deadline_in_forecast(deadline, slots, now=T0)
+    deadline_in_forecast(deadline, slots)
 
 def test_deadline_after_last_slot_raises_error():
     slots = (make_slots([50,]*30))
     deadline = FAR_FUTURE
     with pytest.raises(ValueError, match="48h"):
-        deadline_in_forecast(deadline, slots, now=T0)
+        deadline_in_forecast(deadline, slots)
 
 def test_deadline_equal_last_slot_is_accepted():
     slots = (make_slots([50,]*30))
     deadline = slots[-1].end
-    deadline_in_forecast(deadline, slots, now=T0)
+    deadline_in_forecast(deadline, slots)
 
 # ----- check deadline: in the past -------------
 def test_deadline_in_the_past_raises_error():
@@ -177,6 +177,13 @@ def test_saved_emissions_have_3_dp(client):
     response = client.get("/schedule",params=query_params(10, charge_needed_kwh=1, charge_rate_kw=1))
 
     assert response.json()['saved_kg'] == 0.004
+
+def test_delivered_charg_kwh_has_2_dp(client):
+    fake_server(forecasts=[50, 50] + [200]*94)
+    response = client.get("/schedule",params=query_params(10, charge_needed_kwh=3.66666, charge_rate_kw=7))
+
+    assert response.json()['charge_delivered_kwh'] == 3.67
+
 
 @pytest.mark.parametrize("hours_from_now, expected_fully_charged",[
     (1, False),      #1 hour is not enough for 30 kWh at 7kW 

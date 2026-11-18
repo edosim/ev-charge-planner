@@ -39,7 +39,10 @@ async def fetch_forecast(client: httpx.AsyncClient,
 
 
 def plan_charge(slots: list[Slot], request: ChargeRequest) -> tuple[list[Slot], float, bool]:
-    """Returns slots of planned charge and `bool` of whether it gets fully charged"""
+    """Returns `slots` of planned charge;
+    `charge_delivered_kwh`: the energy that will be delivered with the plan;
+    and `fully_charged`: `bool` of whether it gets fully charged.
+      Note: charge_delivered_kwh will match the requested charge if `fully_charged is True."""
     
     slots_available = [s for s in slots if s.end <= request.deadline]
     # If there are not enough slots charge now.
@@ -92,8 +95,7 @@ async def main() -> None:
     plan, charge_delivered_kwh, fully_charged = plan_charge(slots, request)
 
     if not fully_charged:
-        charge_final = request.charge_rate_kw / 2 * len(plan)
-        print(f"There is not enough time for a full charge. Your vehicle will get {charge_final} kWh.")
+        print(f"There is not enough time for a full charge. Your vehicle will get {charge_delivered_kwhge_final} kWh.")
 
     print("Your vehicle will charge at the following times.")
     for s in plan:
