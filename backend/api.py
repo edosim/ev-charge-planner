@@ -95,7 +95,7 @@ async def schedule(
         raise HTTPException(status_code=422, detail=str(e))
 
     #Get best slots
-    plan, fully_charged = plan_charge(slots, request)
+    plan, charge_delivered_kwh, fully_charged = plan_charge(slots, request)
     #Get emissions
     smart_kg = emissions_kg(plan, request)
     now_kg = emissions_kg(slots[:len(plan)], request)
@@ -106,6 +106,7 @@ async def schedule(
                             emissions_kg=round(smart_kg,3),
                             charge_now_kg=round(now_kg,3),
                             saved_kg=round(saved_kg, 3), #same precision as two above
+                            charge_delivered_kwh=charge_delivered_kwh, 
                             fully_charged=fully_charged
     )
 

@@ -98,6 +98,7 @@ class ScheduleResponse(BaseModel):
     emissions_kg: float
     charge_now_kg: float
     saved_kg: float
+    charge_delivered_kwh: float
     fully_charged: bool
 
 

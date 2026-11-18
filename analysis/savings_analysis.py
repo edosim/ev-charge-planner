@@ -97,7 +97,7 @@ def main(start: str, end: str) -> None:
             }
             request = ChargeRequest.model_validate(request_input)
 
-            chosen, _ = plan_charge(slots_of_date, request)
+            chosen, *_ = plan_charge(slots_of_date, request)
 
             forecasts_current = all_present([s.intensity.forecast for s in chosen])
             actuals_current = all_present([s.intensity.actual for s in chosen])
