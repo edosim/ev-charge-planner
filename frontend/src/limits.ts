@@ -3,7 +3,7 @@
 export const MAX_CHARGE_KWH = 250
 export const MAX_CHARGE_RATE_KW = 22
 
-// Smallest values of the form (the backend requires > 0)
+// Smallest values of the form (the backend requires >= 0)
 export const MIN_CHARGE_KWH = 0.1
 export const MIN_CHARGE_RATE_KW = 0.1
 
