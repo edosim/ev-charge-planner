@@ -44,15 +44,16 @@ def get_now() -> datetime:
     time and tests can pin the clock."""
     return datetime.now(timezone.utc)
 
-
-def check_deadline(deadline: datetime, slots: list[Slot],
-                   now: datetime | None = None) -> None:
-    """Check that the deadline is in the data from the Carbon Intensity API,
-    and after now."""
+def deadline_in_the_future(deadline:datetime, now: datetime | None = None) -> None:
+    "Check that the deadline is in the future, before calling carbon instensity API."
     if now is None:
         now = datetime.now(timezone.utc)
     if deadline <= now:
         raise ValueError("Deadline must be in the future.")
+
+def deadline_in_forecast(deadline: datetime, slots: list[Slot],
+                   now: datetime | None = None) -> None:
+    """Check that the deadline is in the data from the Carbon Intensity API."""
     if deadline > slots[-1].end:
         raise ValueError("Deadline must be within the next 48h "
                          f"(before {slots[-1].end.astimezone(UK):%a %H:%M}).")
@@ -73,14 +74,6 @@ async def schedule(
     now: datetime = Depends(get_now),
 ) -> ScheduleResponse:
     
-    try:
-        slots = await fetch_forecast(client, now)
-    except (httpx.HTTPError, ValidationError, json.JSONDecodeError):
-        raise HTTPException(status_code=503, detail="Carbon Intensity API is unavailable")
-
-    if not slots:
-        raise HTTPException(status_code=503, detail="No forecast data available")         
-                       
     deadline = uk_deadline(deadline_date, deadline_time)
     request = ChargeRequest(
          charge_needed_kwh = charge_needed_kwh,
@@ -90,7 +83,21 @@ async def schedule(
     )
 
     try:
-        check_deadline(request.deadline, slots, now)
+        deadline_in_the_future(request.deadline, now)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    try:
+        slots = await fetch_forecast(client, now)
+    except (httpx.HTTPError, ValidationError, json.JSONDecodeError):
+        raise HTTPException(status_code=503, detail="Carbon Intensity API is unavailable")
+
+    if not slots:
+        raise HTTPException(status_code=503, detail="No forecast data available")         
+
+
+    try:
+        deadline_in_forecast(request.deadline, slots, now)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 

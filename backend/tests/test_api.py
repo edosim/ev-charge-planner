@@ -10,7 +10,8 @@ import httpx
 from fastapi.testclient import TestClient
 
 from api import (
-    check_deadline,
+    deadline_in_the_future,
+    deadline_in_forecast,
     uk_deadline,
     app,
     get_client,
@@ -24,7 +25,7 @@ from constants import (
     UK,
 )
 
-# ----- check_deadline: past and after 48h deadlines ----
+# ---- uk_deadline ------
 @pytest.mark.parametrize("date_deadline, expected",[
     pytest.param(date(2026, 6, 21),
                  datetime(2026, 6, 21, 11, 0, tzinfo=timezone.utc),
@@ -37,34 +38,37 @@ def test_check_deadline_handles_clock_changes(date_deadline, expected):
     time_deadline = time(12,0)
     assert uk_deadline(date_deadline, time_deadline) == expected
 
+# ----- check deadline: after 48h -------------
+
 def test_deadline_in_range_is_accepted():
     slots = (make_slots([50,]*30))
     deadline = slots[1].end
-    check_deadline(deadline, slots, now=T0)
-
-
-def test_deadline_in_the_past_raises_error():
-    slots = (make_slots([50,]*30))
-    deadline = T0 - timedelta(hours=1)
-    with pytest.raises(ValueError, match="future"):
-        check_deadline(deadline, slots, now=T0)
-
-def test_deadline_now_raises_error():
-    slots = (make_slots([50,]*30))
-    with pytest.raises(ValueError, match="future"):
-        check_deadline(T0, slots, now=T0)
-
+    deadline_in_forecast(deadline, slots, now=T0)
 
 def test_deadline_after_last_slot_raises_error():
     slots = (make_slots([50,]*30))
     deadline = FAR_FUTURE
     with pytest.raises(ValueError, match="48h"):
-        check_deadline(deadline, slots, now=T0)
+        deadline_in_forecast(deadline, slots, now=T0)
 
 def test_deadline_equal_last_slot_is_accepted():
     slots = (make_slots([50,]*30))
     deadline = slots[-1].end
-    check_deadline(deadline, slots, now=T0)
+    deadline_in_forecast(deadline, slots, now=T0)
+
+# ----- check deadline: in the past -------------
+def test_deadline_in_the_past_raises_error():
+    slots = (make_slots([50,]*30))
+    deadline = T0 - timedelta(hours=1)
+    with pytest.raises(ValueError, match="future"):
+        deadline_in_the_future(deadline, now=T0)
+
+def test_deadline_now_raises_error():
+    slots = (make_slots([50,]*30))
+    with pytest.raises(ValueError, match="future"):
+        deadline_in_the_future(T0, now=T0)
+
+
 
 # ---------------- test api ---
 # helper functions
@@ -263,6 +267,7 @@ def fake_server_text(status=200, body = "data"):
 
     fake = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     app.dependency_overrides[get_client] = lambda: fake
+    app.dependency_overrides[get_now] = lambda: T0
 
 
 def test_api_not_json_gives_503(client):
