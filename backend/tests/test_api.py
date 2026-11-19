@@ -50,6 +50,13 @@ def test_repeated_time_when_clocks_go_back_is_the_first():
     deadline = uk_deadline(date(2026, 10, 25), time(1, 30))
     assert deadline.astimezone(timezone.utc) == datetime(2026, 10, 25, 0, 30, tzinfo=timezone.utc)
 
+def test_time_with_timezone_raises():
+    date_deadline = date(2026, 11, 1)
+    time_deadline = time(12, 30, tzinfo=timezone.utc)
+    with pytest.raises(ValueError, match="without a time zone"):
+        uk_deadline(date_deadline, time_deadline)
+
+
 # ----- check deadline: after 48h -------------
 
 def test_deadline_in_range_is_accepted():
@@ -349,3 +356,13 @@ def test_nonexisting_deadline_during_clock_change_raises_422(client):
 
     assert response.status_code == 422
     assert "does not exist" in response.json()["detail"]
+
+# ------ test time with timezone is rejected ---
+@pytest.mark.parametrize("bad_time", ["07:00+05:00", "07:00Z"])
+def test_deadline_time_with_timezone_is_rejected(client, bad_time):
+    fake_server()
+    params = query_params(10) | {"deadline_time": bad_time}
+    response = client.get("/schedule", params=params)
+    assert response.status_code == 422
+    assert "without a time zone" in response.json()["detail"]
+    

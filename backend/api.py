@@ -60,8 +60,12 @@ def deadline_in_forecast(deadline: datetime, slots: list[Slot]) -> None:
 def uk_deadline(date_deadline: date, time_deadline: time) -> datetime:
     """Combines UK date and time into UTC deadline
     
-    Raises ValueError for a time skipped when the clocks go forward.
+    Raises `ValueError` for a time with a timezone.
+    Raises `ValueError` for a time skipped when the clocks go forward.
     A time that happens twice when the clocks go back means the first one."""
+    if time_deadline.tzinfo is not None:
+        raise ValueError("Give the time without a time zone: it is read as UK time.")
+    
     deadline = datetime.combine(date_deadline, time_deadline, tzinfo=UK)
     deadline_utc_uk = deadline.astimezone(timezone.utc).astimezone(UK)
     if deadline_utc_uk.replace(tzinfo=None) != deadline.replace(tzinfo=None):
