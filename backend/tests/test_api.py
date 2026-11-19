@@ -232,7 +232,6 @@ def test_deadline_past_48h_raises_422(client):
 # --------- test min and max charge needed and charge rate -----
 @pytest.mark.parametrize("param",[
     pytest.param({"charge_needed_kwh": MAX_CHARGE_KWH}, id="charge_needed_kwh at max"),
-    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH + 1e-6}, id="charge_needed_kwh just above minimum"),
     pytest.param({"charge_rate_kw": MAX_CHARGE_RATE_KW}, id="charge_rate_kw at max"),
     pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW + 1e-6}, id="charge_rate_kw just above min"),
 ],)
@@ -241,9 +240,16 @@ def test_accepts_charge_and_charge_rate_boundary_values(client, param):
     response = client.get("/schedule",params=query_params(10, **param))
     assert response.status_code == 200
 
+def test_charge_needed_kwh_just_above_minimum_gives_one_slot(client):
+    
+    fake_server()
+    response = client.get("/schedule",params=query_params(10, charge_needed_kwh=MIN_CHARGE_KWH + 1e-6))
+    assert len(response.json()["slots"]) == 1
+
 @pytest.mark.parametrize("bad_param",[
     pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH - 1}, id="charge_needed_kwh less than min"),
     pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH}, id="charge_needed_kwh at min"),
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH / 2}, id="charge_needed_kwh positive but below min"),
     pytest.param({"charge_needed_kwh": MAX_CHARGE_KWH + 1e-6}, id="charge_needed_kwh above max"),
     pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW - 1}, id="charge_rate_kw less than min"),
     pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW}, id="charge_rate_kw at min"),

@@ -135,7 +135,7 @@ def test_chargerequest_slots_needed_is_correct(params_to_change,slots_needed_exp
     pytest.param("charge_needed_kwh", MAX_CHARGE_KWH, id="charge_needed_kwh at max"),
     pytest.param("charge_needed_kwh", MIN_CHARGE_KWH + 1e-6, id="charge_needed_kwh just above minimum"),
     pytest.param("charge_rate_kw", MAX_CHARGE_RATE_KW, id="charge_rate_kw at max"),
-    pytest.param("charge_rate_kw", MIN_CHARGE_KWH + 1e-6, id="charge_rate_kw just above min"),
+    pytest.param("charge_rate_kw", MIN_CHARGE_RATE_KW + 1e-6, id="charge_rate_kw just above min"),
 ],)
 def test_chargerequest_accepts_charge_and_charge_rate_boundary_values(field, value):
     request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | {field: value})
@@ -150,7 +150,8 @@ def test_chargerequest_accepts_charge_and_charge_rate_boundary_values(field, val
     pytest.param({"charge_rate_kw": MAX_CHARGE_RATE_KW + 1e-6}, id="charge_rate_kw above max"),
     pytest.param({"mode": "slots"}, id="mode is incorrect string"),
     pytest.param({"mode": "Discrete"}, id="mode is capitalised"),
-    pytest.param({"deadline": "2026-10-28T12:00"}, id="date with no timezone info")
+    pytest.param({"deadline": "2026-10-28T12:00"}, id="date with no timezone info"),
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH / 2}, id="charge_needed_kwh positive but below min"),
 ],)
 def test_chargerequest_rejects_invalid_input(bad_input):
     with pytest.raises(ValidationError):
@@ -165,3 +166,10 @@ def test_chargerequest_rejects_input_with_missing_field():
     charge_request = {k: v for k,v in VALID_CHARGE_REQUEST.items() if k != "charge_needed_kwh"}
     with pytest.raises(ValidationError):
         ChargeRequest.model_validate(charge_request)
+
+def test_smallest_charge_at_highest_power_needs_a_slot():
+    request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | {
+        "charge_needed_kwh": MIN_CHARGE_KWH * 1.01,
+        "charge_rate_kw": MAX_CHARGE_RATE_KW,
+    })
+    assert request.slots_needed >= 1
