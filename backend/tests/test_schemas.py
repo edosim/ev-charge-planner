@@ -27,25 +27,18 @@ def test_intensity_accepts_valid_forecast_and_actual_formats(data,expected):
     assert intensity.actual == expected["actual"]
     assert intensity.index == expected["index"]
 
-@pytest.mark.parametrize("index",["very low", "low", "moderate", "high", "very high"])
-def test_all_api_index_values_are_accepted(index):
+@pytest.mark.parametrize("index",["very low", "low", "moderate", "high", "very high", None, "medium"])
+def test_any_api_index_values_is_accepted(index):
     intensity = Intensity.model_validate({"forecast": 100, "actual": 150, "index": index})
     assert intensity.index == index
-
 
 def test_forecast_is_required():
     with pytest.raises(ValidationError):
         Intensity.model_validate({"index": "moderate"})
 
-@pytest.mark.parametrize("bad_data",[
-    {"actual": 150, "index": "moderate"},                     #no forecast value
-    {"forecast": -1, "actual": 150, "index": "moderate"},     #negative forecast value
-    {"forecast": 100, "actual": 150, "index": "medium"},      #incorrect index string
-    {"forecast": 100, "actual": 150, "index": "Moderate"},    #incorrect capitalisation
-])
-def test_intensity_rejects_invalid_data(bad_data):
+def test_forcast_cannot_be_negative():
     with pytest.raises(ValidationError):
-        Intensity.model_validate(bad_data)
+        Intensity.model_validate({"forecast": -1, "actual": 150, "index": "moderate"})
 
 # ---- test validation of Slot ------
 
