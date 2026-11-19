@@ -34,9 +34,21 @@ from constants import (
                  datetime(2025, 12, 21, 12, 0, tzinfo=timezone.utc),
                  id="winter"),
 ],)
-def test_check_deadline_handles_clock_changes(date_deadline, expected):
+def test_uk_deadline_handles_clock_changes(date_deadline, expected):
     time_deadline = time(12,0)
     assert uk_deadline(date_deadline, time_deadline) == expected
+
+def test_uk_raises_when_time_does_not_exist():
+    # Clocks go forward 1am becomes 2am
+    date_deadline = date(2027, 3, 28)
+    time_deadline = time(1,30)
+    with pytest.raises(ValueError, match="does not exist"):
+        assert uk_deadline(date_deadline, time_deadline)
+
+def test_repeated_time_when_clocks_go_back_is_the_first():
+    # clocks go back: 2am becomes 1am
+    deadline = uk_deadline(date(2026, 10, 25), time(1, 30))
+    assert deadline.astimezone(timezone.utc) == datetime(2026, 10, 25, 0, 30, tzinfo=timezone.utc)
 
 # ----- check deadline: after 48h -------------
 
@@ -322,3 +334,18 @@ def test_deadline_at_end_of_next_slot_is_accepted(client):
     assert response.status_code == 200
     forecasts = [s["intensity"]["forecast"] for s in response.json()["slots"]]
     assert 20 in forecasts
+
+# --------- test clock changes ----------
+
+def test_nonexisting_deadline_during_clock_change_raises_422(client):
+    # Clocks go forward 1am becomes 2am
+    fake_server()
+    params = {
+        "charge_needed_kwh": 30,
+        "deadline_date": "2027-03-28",
+        "deadline_time": "01:30",
+    }
+    response = client.get("/schedule", params=params)
+
+    assert response.status_code == 422
+    assert "does not exist" in response.json()["detail"]
