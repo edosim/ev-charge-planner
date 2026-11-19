@@ -1,7 +1,5 @@
 
-import asyncio
-from datetime import datetime, timezone, timedelta
-
+from datetime import datetime, timezone
 import httpx
 from typing import assert_never
 from schemas import (
@@ -18,7 +16,7 @@ BASE_URL = "https://api.carbonintensity.org.uk"
 
 async def fetch_forecast(client: httpx.AsyncClient,
                          now: datetime | None = None) -> list[Slot]:
-    """Fetch data from Carbon intensity API. Return slots up to the where
+    """Fetch data from Carbon intensity API. Return slots up to where
     `slot.intensity.forecast is None`."""
     if now is None:
         now = datetime.now(timezone.utc)
