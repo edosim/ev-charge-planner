@@ -43,7 +43,7 @@ def test_uk_raises_when_time_does_not_exist():
     date_deadline = date(2027, 3, 28)
     time_deadline = time(1,30)
     with pytest.raises(ValueError, match="does not exist"):
-        assert uk_deadline(date_deadline, time_deadline)
+        uk_deadline(date_deadline, time_deadline)
 
 def test_repeated_time_when_clocks_go_back_is_the_first():
     # clocks go back: 2am becomes 1am

@@ -12,7 +12,7 @@ type ValidationErrorItem = {
 }
 
 export function describeError(detail: unknown): string | null {
-    if (typeof detail === 'string') return 'Error: ' + detail
+    if (typeof detail === 'string') return detail
     if (Array.isArray(detail)) {
         const items = detail as ValidationErrorItem[]
         return items.map((d) => {

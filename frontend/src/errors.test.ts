@@ -9,7 +9,7 @@ describe('describeError', () => {
         {
             name: 'a plain string',
             detail: 'Deadline is too soon.',
-            expected: 'Error: Deadline is too soon.',
+            expected: 'Deadline is too soon.',
         },
         {
             name: 'one validation error',

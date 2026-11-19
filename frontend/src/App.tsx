@@ -69,7 +69,7 @@ function App() {
     } catch (err) { //except
       //write error to browser's developer console
       console.error(err)
-      setError('Error: Could not reach the server.')
+      setError('Could not reach the server.')
     } finally {
       setLoading(false)
     }
@@ -84,7 +84,7 @@ function App() {
       => like lambda*/}
       <form
         onSubmit={(event) => {
-          {/* Prevents reloading all page */ }
+          // Prevents reloading all page
           event.preventDefault()
           handleSubmit()
         }}

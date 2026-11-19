@@ -36,7 +36,7 @@ def test_forecast_is_required():
     with pytest.raises(ValidationError):
         Intensity.model_validate({"index": "moderate"})
 
-def test_forcast_cannot_be_negative():
+def test_forecast_cannot_be_negative():
     with pytest.raises(ValidationError):
         Intensity.model_validate({"forecast": -1, "actual": 150, "index": "moderate"})
 

@@ -58,7 +58,7 @@ def deadline_in_forecast(deadline: datetime, slots: list[Slot]) -> None:
                          f"(before {slots[-1].end.astimezone(UK):%a %H:%M}).")
 
 def uk_deadline(date_deadline: date, time_deadline: time) -> datetime:
-    """Combines UK date and time into UTC deadline
+    """Combines UK date and time into datetime object with UK timezone
     
     Raises `ValueError` for a time with a timezone.
     Raises `ValueError` for a time skipped when the clocks go forward.
@@ -69,7 +69,7 @@ def uk_deadline(date_deadline: date, time_deadline: time) -> datetime:
     deadline = datetime.combine(date_deadline, time_deadline, tzinfo=UK)
     deadline_utc_uk = deadline.astimezone(timezone.utc).astimezone(UK)
     if deadline_utc_uk.replace(tzinfo=None) != deadline.replace(tzinfo=None):
-        raise ValueError(f"{time_deadline:%H:%M} does not exist on {date_deadline:%d/%m%Y}")
+        raise ValueError(f"{time_deadline:%H:%M} does not exist on {date_deadline:%d/%m/%Y}")
     return deadline
 
 # the endpoint
