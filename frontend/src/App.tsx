@@ -3,6 +3,7 @@ import type { ScheduleResponse } from './types'
 import { formatUk } from './time'
 import ForecastChart from './ForecastChart'
 import { describePlan, groupSlots } from './plan'
+import { describeError } from './errors'
 import {
   MAX_CHARGE_KWH, MAX_CHARGE_RATE_KW,
   MIN_CHARGE_KWH, MIN_CHARGE_RATE_KW,
@@ -48,16 +49,21 @@ function App() {
     })
 
     try {
-      // await client.get(..). `${}` are like f"{}"
+      // await client.get(..).
       const response = await fetch(`/schedule?${params}`)
-      const body = await response.json()
-      // if not response.ok
       if (!response.ok) {
-        // cond ? a : b same as a if cond else b
-        // aka deyail if type(detail) == str else json.dumps(detail)
-        setError(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail))
+        let detail: unknown = null
+        try {
+          detail = (await response.json()).detail
+        } catch {
+          // response is not json
+        }
+        setError(describeError(detail) ?? `The server returned an error (${response.status}).`)
         return
       }
+
+      const body: ScheduleResponse = await response.json()
+
       setResult(body)
       setPlannedCharge(chargeNeeded)
     } catch (err) { //except
@@ -78,7 +84,7 @@ function App() {
       => like lambda*/}
       <form
         onSubmit={(event) => {
-          {/* Prevents reloading all page */}
+          // Prevents reloading all page
           event.preventDefault()
           handleSubmit()
         }}
@@ -145,28 +151,28 @@ function App() {
 
       {error && (
         <p className="error" role="alert">
-          Error: {error}
-          </p>
-        )}
+          {error}
+        </p>
+      )}
 
       {result && (
         <section className='results'>
           <div className="stats">
             <div className="stat">
-             <span className='stat-value'>{result.emissions_kg} kg</span>
-             <span className='stat-label'>CO₂ with this plan</span>
+              <span className='stat-value'>{result.emissions_kg} kg</span>
+              <span className='stat-label'>CO₂ with this plan</span>
             </div>
             <div className="stat">
-             <span className='stat-value'>{result.charge_now_kg} kg</span>
-             <span className='stat-label'>CO₂ if you charged now</span>
+              <span className='stat-value'>{result.charge_now_kg} kg</span>
+              <span className='stat-label'>CO₂ if you charged now</span>
             </div>
             <div className="stat">
-             <span className='stat-value'>{result.saved_kg} kg</span>
-             <span className='stat-label'>CO₂ saved</span>
+              <span className='stat-value'>{result.saved_kg} kg</span>
+              <span className='stat-label'>CO₂ saved</span>
             </div>
           </div>
           <p className='summary'>{describePlan(result.slots)}</p>
-          {/* if not result.fully_charged*/}          
+          {/* if not result.fully_charged*/}
           {!result.fully_charged && (
             <p className="warning" role="status">
               There isn't enough time to charge the full {plannedCharge} kWh before your deadline.
@@ -174,11 +180,11 @@ function App() {
               Only charging {result.charge_delivered_kwh} kWh.
             </p>
           )}
-            <ForecastChart forecast={result.forecast} chosen={result.slots} />
+          <ForecastChart forecast={result.forecast} chosen={result.slots} />
 
 
-            <h2 className="section-title" id="charging-times">Charging times</h2>
-            <ul className='slot-list' aria-labelledby="charging-times">
+          <h2 className="section-title" id="charging-times">Charging times</h2>
+          <ul className='slot-list' aria-labelledby="charging-times">
             {groupSlots(result.slots).map((slot) => (
               <li key={slot.from}>
                 {formatUk(slot.from)} – {formatUk(slot.to)}

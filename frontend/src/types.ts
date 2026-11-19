@@ -1,9 +1,8 @@
-export type IntensityIndex = 'very low'| 'low'| 'moderate'| 'high'| 'very high';
 
 export type Intensity = {
     forecast: number;
     actual: number | null;
-    index: IntensityIndex;
+    index: string | null;
 };
 
 export type Slot = {

@@ -34,9 +34,28 @@ from constants import (
                  datetime(2025, 12, 21, 12, 0, tzinfo=timezone.utc),
                  id="winter"),
 ],)
-def test_check_deadline_handles_clock_changes(date_deadline, expected):
+def test_uk_deadline_handles_clock_changes(date_deadline, expected):
     time_deadline = time(12,0)
     assert uk_deadline(date_deadline, time_deadline) == expected
+
+def test_uk_raises_when_time_does_not_exist():
+    # Clocks go forward 1am becomes 2am
+    date_deadline = date(2027, 3, 28)
+    time_deadline = time(1,30)
+    with pytest.raises(ValueError, match="does not exist"):
+        uk_deadline(date_deadline, time_deadline)
+
+def test_repeated_time_when_clocks_go_back_is_the_first():
+    # clocks go back: 2am becomes 1am
+    deadline = uk_deadline(date(2026, 10, 25), time(1, 30))
+    assert deadline.astimezone(timezone.utc) == datetime(2026, 10, 25, 0, 30, tzinfo=timezone.utc)
+
+def test_time_with_timezone_raises():
+    date_deadline = date(2026, 11, 1)
+    time_deadline = time(12, 30, tzinfo=timezone.utc)
+    with pytest.raises(ValueError, match="without a time zone"):
+        uk_deadline(date_deadline, time_deadline)
+
 
 # ----- check deadline: after 48h -------------
 
@@ -213,7 +232,6 @@ def test_deadline_past_48h_raises_422(client):
 # --------- test min and max charge needed and charge rate -----
 @pytest.mark.parametrize("param",[
     pytest.param({"charge_needed_kwh": MAX_CHARGE_KWH}, id="charge_needed_kwh at max"),
-    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH + 1e-6}, id="charge_needed_kwh just above minimum"),
     pytest.param({"charge_rate_kw": MAX_CHARGE_RATE_KW}, id="charge_rate_kw at max"),
     pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW + 1e-6}, id="charge_rate_kw just above min"),
 ],)
@@ -222,9 +240,16 @@ def test_accepts_charge_and_charge_rate_boundary_values(client, param):
     response = client.get("/schedule",params=query_params(10, **param))
     assert response.status_code == 200
 
+def test_charge_needed_kwh_just_above_minimum_gives_one_slot(client):
+    
+    fake_server()
+    response = client.get("/schedule",params=query_params(10, charge_needed_kwh=MIN_CHARGE_KWH + 1e-6))
+    assert len(response.json()["slots"]) == 1
+
 @pytest.mark.parametrize("bad_param",[
     pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH - 1}, id="charge_needed_kwh less than min"),
     pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH}, id="charge_needed_kwh at min"),
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH / 2}, id="charge_needed_kwh positive but below min"),
     pytest.param({"charge_needed_kwh": MAX_CHARGE_KWH + 1e-6}, id="charge_needed_kwh above max"),
     pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW - 1}, id="charge_rate_kw less than min"),
     pytest.param({"charge_rate_kw": MIN_CHARGE_RATE_KW}, id="charge_rate_kw at min"),
@@ -322,3 +347,28 @@ def test_deadline_at_end_of_next_slot_is_accepted(client):
     assert response.status_code == 200
     forecasts = [s["intensity"]["forecast"] for s in response.json()["slots"]]
     assert 20 in forecasts
+
+# --------- test clock changes ----------
+
+def test_nonexisting_deadline_during_clock_change_raises_422(client):
+    # Clocks go forward 1am becomes 2am
+    fake_server()
+    params = {
+        "charge_needed_kwh": 30,
+        "deadline_date": "2027-03-28",
+        "deadline_time": "01:30",
+    }
+    response = client.get("/schedule", params=params)
+
+    assert response.status_code == 422
+    assert "does not exist" in response.json()["detail"]
+
+# ------ test time with timezone is rejected ---
+@pytest.mark.parametrize("bad_time", ["07:00+05:00", "07:00Z"])
+def test_deadline_time_with_timezone_is_rejected(client, bad_time):
+    fake_server()
+    params = query_params(10) | {"deadline_time": bad_time}
+    response = client.get("/schedule", params=params)
+    assert response.status_code == 422
+    assert "without a time zone" in response.json()["detail"]
+    

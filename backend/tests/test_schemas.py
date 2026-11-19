@@ -27,25 +27,18 @@ def test_intensity_accepts_valid_forecast_and_actual_formats(data,expected):
     assert intensity.actual == expected["actual"]
     assert intensity.index == expected["index"]
 
-@pytest.mark.parametrize("index",["very low", "low", "moderate", "high", "very high"])
-def test_all_api_index_values_are_accepted(index):
+@pytest.mark.parametrize("index",["very low", "low", "moderate", "high", "very high", None, "medium"])
+def test_any_api_index_values_is_accepted(index):
     intensity = Intensity.model_validate({"forecast": 100, "actual": 150, "index": index})
     assert intensity.index == index
-
 
 def test_forecast_is_required():
     with pytest.raises(ValidationError):
         Intensity.model_validate({"index": "moderate"})
 
-@pytest.mark.parametrize("bad_data",[
-    {"actual": 150, "index": "moderate"},                     #no forecast value
-    {"forecast": -1, "actual": 150, "index": "moderate"},     #negative forecast value
-    {"forecast": 100, "actual": 150, "index": "medium"},      #incorrect index string
-    {"forecast": 100, "actual": 150, "index": "Moderate"},    #incorrect capitalisation
-])
-def test_intensity_rejects_invalid_data(bad_data):
+def test_forecast_cannot_be_negative():
     with pytest.raises(ValidationError):
-        Intensity.model_validate(bad_data)
+        Intensity.model_validate({"forecast": -1, "actual": 150, "index": "moderate"})
 
 # ---- test validation of Slot ------
 
@@ -142,7 +135,7 @@ def test_chargerequest_slots_needed_is_correct(params_to_change,slots_needed_exp
     pytest.param("charge_needed_kwh", MAX_CHARGE_KWH, id="charge_needed_kwh at max"),
     pytest.param("charge_needed_kwh", MIN_CHARGE_KWH + 1e-6, id="charge_needed_kwh just above minimum"),
     pytest.param("charge_rate_kw", MAX_CHARGE_RATE_KW, id="charge_rate_kw at max"),
-    pytest.param("charge_rate_kw", MIN_CHARGE_KWH + 1e-6, id="charge_rate_kw just above min"),
+    pytest.param("charge_rate_kw", MIN_CHARGE_RATE_KW + 1e-6, id="charge_rate_kw just above min"),
 ],)
 def test_chargerequest_accepts_charge_and_charge_rate_boundary_values(field, value):
     request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | {field: value})
@@ -157,7 +150,8 @@ def test_chargerequest_accepts_charge_and_charge_rate_boundary_values(field, val
     pytest.param({"charge_rate_kw": MAX_CHARGE_RATE_KW + 1e-6}, id="charge_rate_kw above max"),
     pytest.param({"mode": "slots"}, id="mode is incorrect string"),
     pytest.param({"mode": "Discrete"}, id="mode is capitalised"),
-    pytest.param({"deadline": "2026-10-28T12:00"}, id="date with no timezone info")
+    pytest.param({"deadline": "2026-10-28T12:00"}, id="date with no timezone info"),
+    pytest.param({"charge_needed_kwh": MIN_CHARGE_KWH / 2}, id="charge_needed_kwh positive but below min"),
 ],)
 def test_chargerequest_rejects_invalid_input(bad_input):
     with pytest.raises(ValidationError):
@@ -172,3 +166,10 @@ def test_chargerequest_rejects_input_with_missing_field():
     charge_request = {k: v for k,v in VALID_CHARGE_REQUEST.items() if k != "charge_needed_kwh"}
     with pytest.raises(ValidationError):
         ChargeRequest.model_validate(charge_request)
+
+def test_smallest_charge_at_highest_power_needs_a_slot():
+    request = ChargeRequest.model_validate(VALID_CHARGE_REQUEST | {
+        "charge_needed_kwh": MIN_CHARGE_KWH * 1.01,
+        "charge_rate_kw": MAX_CHARGE_RATE_KW,
+    })
+    assert request.slots_needed >= 1

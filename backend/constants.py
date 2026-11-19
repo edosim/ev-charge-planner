@@ -1,7 +1,7 @@
 from zoneinfo import ZoneInfo
 
 MAX_CHARGE_KWH = 250
-MIN_CHARGE_KWH = 0
+MIN_CHARGE_KWH = 1e-5
 
 MAX_CHARGE_RATE_KW = 22
 MIN_CHARGE_RATE_KW = 0

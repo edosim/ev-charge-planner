@@ -23,7 +23,7 @@ class Intensity(BaseModel):
 
     forecast: int | None = Field(ge=0)
     actual: int | None = None
-    index: Literal["very low", "low", "moderate", "high", "very high"]
+    index: str | None = None  # unused so not checked
 
 
 class Slot(BaseModel):
