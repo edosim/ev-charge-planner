@@ -73,3 +73,8 @@ export function chartTicks(slots: Slot[], everyHours = 4): ChartTicks {
   }
   return { ticks, labels }
 }
+
+// display kg stats with no dp when they are 0. Otherwise to 3dp.
+export function formatKg(kg: number): string {
+  return kg === 0 ? '0' : kg.toFixed(3)
+}

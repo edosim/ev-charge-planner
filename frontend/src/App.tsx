@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ScheduleResponse } from './types'
 import { formatUk } from './time'
 import ForecastChart from './ForecastChart'
-import { describePlan, groupSlots } from './plan'
+import { describePlan, groupSlots, formatKg } from './plan'
 import { describeError } from './errors'
 import {
   MAX_CHARGE_KWH, MAX_CHARGE_RATE_KW,
@@ -159,15 +159,15 @@ function App() {
         <section className='results'>
           <div className="stats">
             <div className="stat">
-              <span className='stat-value'>{result.emissions_kg} kg</span>
+              <span className='stat-value'>{formatKg(result.emissions_kg)} kg</span>
               <span className='stat-label'>CO₂ with this plan</span>
             </div>
             <div className="stat">
-              <span className='stat-value'>{result.charge_now_kg} kg</span>
+              <span className='stat-value'>{formatKg(result.charge_now_kg)} kg</span>
               <span className='stat-label'>CO₂ if you charged now</span>
             </div>
             <div className="stat">
-              <span className='stat-value'>{result.saved_kg} kg</span>
+              <span className='stat-value'>{formatKg(result.saved_kg)} kg</span>
               <span className='stat-label'>CO₂ saved</span>
             </div>
           </div>
