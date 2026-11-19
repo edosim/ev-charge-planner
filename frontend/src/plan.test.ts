@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Slot } from './types'
-import { describePlan, groupSlots } from './plan'
-
+import { chartTicks, describePlan, groupSlots } from './plan'
 
 // make slots starting at 00:00 on 30/10/2026 or other date
 // kinda bad. would be better to use Date objects
@@ -45,7 +44,6 @@ describe('describePlan', () => {
   })
 })
 
-// const alphaNumeric = alpha.concat(numeric); 
 
 
 describe('groupSlots', () => {
@@ -60,3 +58,18 @@ describe('groupSlots', () => {
   })
 })
 
+describe('chartTicks', () => {
+  it('puts a tick every 4 hours and labels each new day', () => {
+    const { ticks, labels } = chartTicks([...makeSlots(48), ...makeSlots(48, '31')])
+    expect(ticks.map((t) => labels.get(t))).toEqual([
+      { time: '00:00', day: 'Fri' }, { time: '04:00' }, { time: '08:00' },
+      { time: '12:00' }, { time: '16:00' }, { time: '20:00' },
+      { time: '00:00', day: 'Sat' }, { time: '04:00' }, { time: '08:00' },
+      { time: '12:00' }, { time: '16:00' }, { time: '20:00' },
+    ])
+  })
+  it('gives the first tick a weekday even when it is not midnight', () => {
+    const { ticks, labels } = chartTicks(makeSlots(48).slice(10))   // starts at 05:00
+    expect(labels.get(ticks[0])).toEqual({ time: '08:00', day: 'Fri' })
+  })
+})
