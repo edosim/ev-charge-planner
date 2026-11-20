@@ -13,7 +13,7 @@ CHARGE_RATE = 7 #kW
 
 # Here input the first and last dates of the time period you want to calculate
 # carbon savings for
-START_DATE = "2026-09-01"
+START_DATE = "2025-10-01"
 END_DATE = "2026-10-01" 
 # Only calculated for charging between 7pm and 7am
 # (during clock changes it uses the local 7pm and 7am to reflect people's behaviour)

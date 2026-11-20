@@ -1,7 +1,7 @@
 # Carbon savings analysis: how much CO₂ would EV Charge Planner have saved?
 
 
-Over September 2026, scheduling a 28 kWh charge at 7 kW between 19:00 and 07:00 (UK time) in continuous mode would have cut emissions by 25%: 0.95 kg CO₂ per charge, or 28.5 kg over the month.
+Between 1/10/2025 and 1/10/2026, scheduling a 28 kWh charge at 7 kW between 19:00 and 07:00 (UK time) in both modes would have cut emissions by 22%: ~0.9 kg CO₂ per charge, or ~320 kg over the year.
 
 ## Question
 
@@ -11,7 +11,7 @@ How much CO₂ does scheduling an overnight charge save, compared with charging 
 ## Data
 
 - **Source:** [Carbon Intensity API](https://carbonintensity.org.uk/), national endpoint `/intensity/{from}/{to}`
-- **Period:** 01/09/2026 to 01/10/2026 (30 days, half-hourly)
+- **Period:** 01/10/2025 to 01/10/2026 (365 days, half-hourly)
 - **Fields used:** `forecast` (to plan charge) and `actual` (to measure emissions)
 - **Licence:** data by the National Energy System Operator (NESO), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
@@ -33,16 +33,16 @@ The plans were made with the app's `plan_charge` function using the forecast int
 
 
 
-| Mode        | Average emissions per charge (kg)  | Average saving per charge (kg)|
-| ----------- | -----------                       | ----------                    |
-| Charge now  | 3.80                              |                               |
-| Discrete    | 2.90                              | 0.89 (23%)                         |
-| Continuous  | 2.84                              | 0.95 (25%)                        |
+| Mode        | Average emissions per charge (kg) | Average saving per charge (kg) |
+| ----------- | -----------                       | ----------                     |
+| Charge now  | 3.99                              |                                |
+| Discrete    | 3.12                              | 0.87 (22%)                     |
+| Continuous  | 3.10                              | 0.89 (22%)                     |
 
 
-Smart charging cut emissions by a quarter.
+Smart charging cut emissions by slightly less than a quarter.
 
-Surprisingly, continuous charging saved slightly more than discrete charging. This is due to the difference between the forecast and the actual carbon intensity. Since over the month the difference was only about 0.06 kg per charge, both modes are expected to perform similarly.
+Surprisingly, continuous charging saved slightly more than discrete charging by 20 gCO₂. This is due to the difference between the forecast and the actual carbon intensity, as well as the fact that usually the least carbon intense half-hours are clustered at night when the energy demand deacreases.
 
 ## Limitations
 
