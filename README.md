@@ -14,19 +14,19 @@ EV Charge Planner is a live app for planning carbon-aware charging times for ele
 ## What it does
 
 - Fetches the UK's carbon intensity 48-hour forecast from the [Carbon Intensity API](https://carbonintensity.org.uk/).
-- Picks the greenest half-hour slots (*discrete mode*) or the greenest continous block of half-hour slots (*continuous mode*) before your deadline.
+- Picks the greenest half-hour slots (*discrete mode*) or the greenest continuous block of half-hour slots (*continuous mode*) before your deadline.
 - Shows the picked slots, the CO₂ emissions saved compared to charging now and warns you if there isn't enough time for a full charge.
 
 ## Results
 
-In September 2026, EV Charge Planner would have reduced emissions by 25%. Check out the analysis [here](analysis/README.md).
+In September 2026, EV Charge Planner would have reduced emissions by about a quarter. Check out the analysis, including its limitations [here](analysis/README.md).
 
 ## How it works
 
 1. The browser loads a page from a single container running a FastAPI server on Google Cloud Run. The server contains the React page and the API.
-2. Afer submitting, the form, the charge needed, power, date, time and chosen mode are sent to the the `\schedule` endpoint.
-3. FastAPI fetches the 48-hour forecast from the Carbon Intensity API, determines the best half-hours and computes the total emissions forecasted for the plan, the total emissions forecasted for charging now and their difference.
-4. The page shows a chart of the plan, the emission data, the times of the charge and warns if there are not enough slots for a full charge.
+2. After submitting the form, the charge needed, charger power, deadline (UK date and time) and mode are sent to the `/schedule` endpoint.
+3. FastAPI checks the deadline, fetches the 48-hour forecast from the Carbon Intensity API, and drops the half-hour already in progress. It then determines the best half-hours and computes the total forecast emissions for the plan, the total forecast emissions for charging from the next half-hour and their difference.
+4. The page shows a chart of the plan, the emissions, the times of the charge and warns if there are not enough slots for a full charge.
 
 
 ## Tech stack
@@ -35,30 +35,31 @@ In September 2026, EV Charge Planner would have reduced emissions by 25%. Check 
 | --------  | --------------------------------------                     |
 | Backend   | Python 3.11, FastAPI, httpx, Pydantic                     |
 | Frontend  | React, Vite, TypeScript, Recharts                         |
-| Testing   | pytest, Vitest, ESLint                                    |
+| Testing   | pytest, mypy, Vitest, ESLint                                    |
 | Delivery  | Docker, GitHub Actions, Google Cloud Run    |
 
 ## Design decisions
 
-- **Domain models:** Pydantic models guarantee the planner only receives valid data. Forecast slots must be timezone-aware, 30 minutes long and consecutive, which the scheduling and emissions code rely on. `ChargeRequest` is an immutable value object that derives the number of slots needed.
-- **Context-dependent rules:** checks like "the deadline is in the future" depend on the current time and forecast, so they live in the endpoint. This keeps historical requests valid in the savings study and keeps tests independent of the clock.
-- **Unused fields:** validation rejects bad values in fields the planner uses, but doesn't constrain unused fields, so an odd value the app ignores can't take the service down.
-- **Missing forecast values:** if a forecast value is missing, the app uses the unbroken run of slots before it, so continuous mode never spans a gap.
-- **Scheduling modes:** discrete picks the greenest slots anywhere; continuous finds the best unbroken block with a sliding window.
-- **Time zones:** all times are UTC inside the app; UK time is used only for display.
-- **HTTP client:** one shared `httpx.AsyncClient` is created at startup and passed in with dependency injection, so tests can swap in a fake server.
-- **Frontend types:** TypeScript types mirror the Pydantic response models.
-- **Serving the frontend:** FastAPI serves both the API and the built React page, so there is one container to deploy.
-- **Docker image:** a multi-stage Docker build ships only Python and the built page, and runs as a non-root user.
-- **Cloud Run configuration:** the service runs as an account with no permissions, scales to zero, is capped at one instance, and has a spend cap.
+
+- **Planning:** discrete mode picks the greenest half-hours, continuous mode finds the greenest unbroken block with a sliding window. Plans start at the next half-hour, and the last slot may be partial.
+- **Validation:** Pydantic models check every request and forecast before the planner sees them, with the same limits at the endpoint and in the request model.
+- **Time:** deadlines are entered in UK time and handled in UTC, with clock changes handled explicitly.
+- **Testability:** the HTTP client and the current time are injected, so tests run against a fake API with a fixed clock.
+- **Deployment:** one container serves both the API and the page, on Cloud Run with no permissions and scaling to zero.
+
+The detailed description of each is in [docs/design-decisions.md](docs/design-decisions.md).
+
+
 
 ## Repository structure
 
 ```
 ev-charge-planner/
-├── backend/        # FastAPI app, planner and pytest tests
+├── backend/        # FastAPI app (api.py), planner, schemas and pytest tests
 ├── frontend/       # React + TypeScript page and Vitest tests
-├── analysis/       # Savings analysis
+├── analysis/       # Savings analysis and tests
+├── deploy/         # Artifact Registry clean-up policy
+├── docs/           # App screenshot and design decisions
 ├── Dockerfile      # Builds the page, then the Python app
 └── .github/        # CI workflow
 ```
@@ -73,9 +74,11 @@ pip install -r requirements-dev.txt
 uvicorn api:app --reload
 ```
 
-Go to http://localhost:8000/docs to see the endpoint
+Go to http://localhost:8000/docs to see the endpoint.
 
 ### Frontend
+
+Start the backend first: the dev server forwards `/schedule` requests to it.
 
 ```bash
 cd frontend
@@ -100,6 +103,7 @@ Go to http://localhost:8080.
 
 ```bash
 cd backend
+mypy
 pytest
 ```
 
@@ -110,12 +114,12 @@ npm run lint
 npm run test
 ```
 
-GitHub Actions runs these on every push and checks that the Docker image can be built.
+GitHub Actions runs these on pushes to `main` and on pull requests, and checks that the Docker image can be built.
 
 ## Future features
 
-- Regional forecasts
-- Price-aware charging
+- Regional forecasts.
+- Price-aware charging.
 - Cache the forecast API.
 
 ## Forecast data

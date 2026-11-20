@@ -149,13 +149,6 @@ button:focus-visible {
   color: var(--muted);
 }
 
-.stat-highlight {
-  background: var(--green-tint);
-}
-
-.stat-highlight .stat-value {
-  color: var(--green-text);
-}
 
 .summary {
   margin: 16px 0 8px;

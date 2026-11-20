@@ -38,7 +38,7 @@ def test_uk_deadline_handles_clock_changes(date_deadline, expected):
     time_deadline = time(12,0)
     assert uk_deadline(date_deadline, time_deadline) == expected
 
-def test_uk_raises_when_time_does_not_exist():
+def test_uk_raises_when_clocks_go_forward():
     # Clocks go forward 1am becomes 2am
     date_deadline = date(2027, 3, 28)
     time_deadline = time(1,30)

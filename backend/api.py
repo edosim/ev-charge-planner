@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, time, timedelta, date, timezone
+from datetime import datetime, time, date, timezone
 from typing import Literal
 from constants import (
     MAX_CHARGE_KWH, MIN_CHARGE_KWH,
@@ -36,8 +36,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(title="EV Charge Planner", lifespan=lifespan)
 
 def get_client(request: Request) -> httpx.AsyncClient:
-      client: httpx.AsyncClient = request.app.state.client
-      return client
+    client: httpx.AsyncClient = request.app.state.client
+    return client
 
 def get_now() -> datetime:
     """Get current time in UTC. A dependency so planner and endpoint share the same
@@ -45,7 +45,7 @@ def get_now() -> datetime:
     return datetime.now(timezone.utc)
 
 def deadline_in_the_future(deadline:datetime, now: datetime | None = None) -> None:
-    """Check that the deadline is in the future, before calling carbon instensity API."""
+    """Check that the deadline is in the future, before calling carbon intensity API."""
     if now is None:
         now = datetime.now(timezone.utc)
     if deadline <= now:
@@ -149,7 +149,7 @@ STATIC_DIR = Path(os.environ.get(
 def mount_app(app: FastAPI, static_dir: Path) -> None:
 
     if static_dir.is_dir():
-    # attach subapplication at a path
+        # attach subapplication at a path
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")
 
 mount_app(app, STATIC_DIR)

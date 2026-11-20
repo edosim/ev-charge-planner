@@ -2,6 +2,7 @@
 **/__pycache__
 **/.pytest_cache
 **/.venv
+**/.mypy_cache
 frontend/dist
 backend/tests
 analysis
